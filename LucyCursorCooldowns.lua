@@ -36,21 +36,31 @@ cooldownFrame.cooldown:SetHideCountdownNumbers(false)
 LCC.cooldownFrame = cooldownFrame
 LCC.fadeTimer = nil
 
--- Update frame position to follow cursor
-local function UpdateCursorPosition()
+-- Store the locked position for the cooldown frame
+cooldownFrame.lockedX = nil
+cooldownFrame.lockedY = nil
+
+-- Update frame position (either locked position or for animation offset changes)
+local function UpdateFramePosition()
+    local offsetY = cooldownFrame.animOffsetY or 0
+    if cooldownFrame.lockedX and cooldownFrame.lockedY then
+        cooldownFrame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", cooldownFrame.lockedX, cooldownFrame.lockedY + offsetY)
+    end
+end
+
+-- Capture current cursor position and lock the frame to it
+local function LockFrameToCursor()
     local db = LucyCursorCooldownsDB
     local x, y = GetCursorPosition()
     local scale = UIParent:GetEffectiveScale()
-    cooldownFrame.cursorX = x / scale + (db.cursorOffsetX or 20)
-    cooldownFrame.cursorY = y / scale + (db.cursorOffsetY or 20)
-
-    local offsetY = cooldownFrame.animOffsetY or 0
-    cooldownFrame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", cooldownFrame.cursorX, cooldownFrame.cursorY + offsetY)
+    cooldownFrame.lockedX = x / scale + (db.cursorOffsetX or 20)
+    cooldownFrame.lockedY = y / scale + (db.cursorOffsetY or 20)
+    UpdateFramePosition()
 end
 
--- OnUpdate script to follow cursor
+-- OnUpdate script to update position (only for animation offset changes)
 cooldownFrame:SetScript("OnUpdate", function(self, elapsed)
-    UpdateCursorPosition()
+    UpdateFramePosition()
 end)
 
 -- Event handler function
@@ -176,10 +186,12 @@ function LCC:ShowCooldownAtCursor(spellID, startTime, duration)
     local isUpdate = cooldownFrame:IsShown()
 
     if not isUpdate then
+        -- Lock position to cursor for new cooldown
+        LockFrameToCursor()
         -- Animate in for new cooldown
         LCC:AnimateInCooldownFrame()
     else
-        -- Just reset alpha if updating
+        -- Just reset alpha if updating (keep same position)
         cooldownFrame:SetAlpha(1.0)
     end
 
@@ -245,6 +257,9 @@ function LCC:FadeOutCooldownFrame()
             cooldownFrame:Hide()
             cooldownFrame:SetAlpha(1.0)
             cooldownFrame.animOffsetY = 0
+            -- Clear locked position when frame is hidden
+            cooldownFrame.lockedX = nil
+            cooldownFrame.lockedY = nil
             fadeTimer:Cancel()
         else
             cooldownFrame:SetAlpha(newAlpha)
