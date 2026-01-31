@@ -164,7 +164,7 @@ function LCC:OnAddonLoaded()
         LucyCursorCooldownsDB.showBorder = true
     end
     if not LucyCursorCooldownsDB.borderColor then
-        LucyCursorCooldownsDB.borderColor = {r = 0, g = 0, b = 0, a = 1}
+        LucyCursorCooldownsDB.borderColor = { r = 0, g = 0, b = 0, a = 1 }
     end
     if not LucyCursorCooldownsDB.borderSize then
         LucyCursorCooldownsDB.borderSize = 2
@@ -173,6 +173,11 @@ function LCC:OnAddonLoaded()
     -- Cooldown edge settings
     if LucyCursorCooldownsDB.drawEdge == nil then
         LucyCursorCooldownsDB.drawEdge = true
+    end
+
+    -- Minimum cooldown threshold (filter out GCD)
+    if not LucyCursorCooldownsDB.minCooldownThreshold then
+        LucyCursorCooldownsDB.minCooldownThreshold = 2.0
     end
 
     -- Apply initial sizes to the cooldown frame
@@ -212,10 +217,16 @@ function LCC:OnSpellcastFailed(unit, castGUID, spellID)
 
     -- At this point, we have safe access to cooldown data
     if cooldownInfo.duration and cooldownInfo.duration > 0 then
-        -- Verify startTime is also safe before using it
-        if IsSafeValue(cooldownInfo.startTime) then
-            -- Spell is on cooldown, show the cursor cooldown frame
-            LCC:ShowCooldownAtCursor(spellID, cooldownInfo.startTime, cooldownInfo.duration)
+        -- Filter out global cooldown (GCD) using user-configured threshold
+        local minThreshold = LucyCursorCooldownsDB.minCooldownThreshold or 2.0
+        local isGCDOnly = cooldownInfo.duration < minThreshold
+
+        if not isGCDOnly then
+            -- Verify startTime is also safe before using it
+            if IsSafeValue(cooldownInfo.startTime) then
+                -- Spell has a real cooldown (not just GCD), show the cursor cooldown frame
+                LCC:ShowCooldownAtCursor(spellID, cooldownInfo.startTime, cooldownInfo.duration)
+            end
         end
     end
     -- No print statements - fail silently when cooldown info isn't available
@@ -429,8 +440,8 @@ function LCC:ShowOptionsFrame()
                     newR, newG, newB = ColorPickerFrame:GetColorRGB()
                     newA = ColorPickerFrame:GetColorAlpha()
                 end
-                
-                setValue({r = newR, g = newG, b = newB, a = newA})
+
+                setValue({ r = newR, g = newG, b = newB, a = newA })
                 colorTexture:SetColorTexture(newR, newG, newB, newA)
                 LCC:UpdateFrameSizes()
             end
@@ -518,6 +529,11 @@ function LCC:ShowOptionsFrame()
         function() return db.animateInDuration end,
         function(val) db.animateInDuration = val end,
         "Duration of the pop-in animation")
+
+    CreateSlider(content, "LCCMinCooldownThresholdSlider", "Min Cooldown Threshold", 0.0, 5.0, 0.1,
+        function() return db.minCooldownThreshold end,
+        function(val) db.minCooldownThreshold = val end,
+        "Minimum cooldown duration to show icon (filters out GCD)")
 
     -- Section: Animation Settings
     local animHeader = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
@@ -607,17 +623,18 @@ function LCC:ShowOptionsFrame()
     resetButton:SetText("Reset to Defaults")
     resetButton:SetScript("OnClick", function()
         -- Reset all values to defaults
-        db.iconSize = 36
-        db.cursorOffsetX = 20
-        db.cursorOffsetY = 20
-        db.fadeoutDelay = 2.0
-        db.fadeDuration = 0.5
-        db.animateInDuration = 0.2
-        db.initialYOffset = 10
+        db.iconSize = 34
+        db.cursorOffsetX = 30
+        db.cursorOffsetY = 30
+        db.fadeoutDelay = 0.5
+        db.fadeDuration = 0.1
+        db.animateInDuration = 0.1
+        db.initialYOffset = 20
         db.showBorder = true
-        db.borderColor = {r = 0, g = 0, b = 0, a = 1}
+        db.borderColor = { r = 0, g = 0, b = 0, a = 1 }
         db.borderSize = 2
         db.drawEdge = true
+        db.minCooldownThreshold = 2.0
 
         -- Update all sliders
         LCC.optionsFrame:Hide()
