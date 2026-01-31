@@ -1,0 +1,8 @@
+## Interface: 120000
+## Title: Lucy Cursor Cooldowns
+## Notes: Displays the cooldowns of failed casts at the cursor
+## Author: Your Name
+## Version: 1.0.0
+## SavedVariables: LucyCursorCooldownsDB
+
+LucyCursorCooldowns.lua
