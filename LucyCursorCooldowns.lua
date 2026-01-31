@@ -142,25 +142,46 @@ function LCC:OnAddonLoaded()
     LCC:UpdateFrameSizes()
 end
 
+-- Helper function to safely check if a value is a secret variable
+local function IsSafeValue(value)
+    -- If value is nil, it's safe (just not available)
+    if value == nil then return true end
+    
+    -- Try to use the value in a protected call
+    local success = pcall(function()
+        local _ = value > 0  -- Attempt comparison
+    end)
+    
+    return success
+end
+
 -- Spellcast failed handler
 function LCC:OnSpellcastFailed(unit, castGUID, spellID)
     if unit ~= "player" then return end
     if not LucyCursorCooldownsDB.enabled then return end
 
-    local spellInfo = C_Spell.GetSpellInfo(spellID)
-    local spellName = spellInfo and spellInfo.name or "Unknown"
-
-    -- Get cooldown information
-    local cooldownInfo = C_Spell.GetSpellCooldown(spellID)
-
-    if cooldownInfo and cooldownInfo.duration > 0 then
-        -- Spell is on cooldown, show the cursor cooldown frame
-        LCC:ShowCooldownAtCursor(spellID, cooldownInfo.startTime, cooldownInfo.duration)
-        print("|cFFFF0000Spell on cooldown:|r " ..
-            spellName .. " (" .. string.format("%.1f", cooldownInfo.duration) .. "s)")
-    else
-        print("|cFFFF0000Spell cast failed:|r " .. spellName .. " (ID: " .. spellID .. ")")
+    -- Get cooldown information using pcall to handle secret values during combat
+    local success, cooldownInfo = pcall(C_Spell.GetSpellCooldown, spellID)
+    
+    -- If the call failed or returned nil, we can't proceed
+    if not success or not cooldownInfo then
+        return -- Fail silently - likely in combat with restricted API access
     end
+    
+    -- Check if the duration field is accessible (not a secret value)
+    if not IsSafeValue(cooldownInfo.duration) then
+        return -- Fail silently - duration is a secret value (combat restriction)
+    end
+    
+    -- At this point, we have safe access to cooldown data
+    if cooldownInfo.duration and cooldownInfo.duration > 0 then
+        -- Verify startTime is also safe before using it
+        if IsSafeValue(cooldownInfo.startTime) then
+            -- Spell is on cooldown, show the cursor cooldown frame
+            LCC:ShowCooldownAtCursor(spellID, cooldownInfo.startTime, cooldownInfo.duration)
+        end
+    end
+    -- No print statements - fail silently when cooldown info isn't available
 end
 
 -- Show cooldown at cursor
