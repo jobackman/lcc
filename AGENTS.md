@@ -9,17 +9,24 @@ World of Warcraft addon written in Lua. Tracks spell cast failures and cursor co
 
 ## Build/Test/Lint Commands
 
+### Build Process
+- Build addon package: `.release/build.sh` (packages and copies to WoW directory)
+- Manual package: `.release/release.sh -d -z` (creates zip in .release/)
+- Build output: `.release/LucyCursorCooldowns/`
+- Exclusions: Add files to `.pkgmeta` ignore list to exclude from package (AGENTS.md is excluded)
+
 ### Testing
-No automated tests currently exist. Manual testing required:
-1. Copy addon to WoW AddOns directory: `C:\Program Files (x86)\World of Warcraft\_retail_\Interface\AddOns\LucyCursorCooldowns\`
+No automated tests. Manual testing required:
+1. Run `.release/build.sh` to build and deploy to WoW
 2. Launch WoW and test in-game
 3. Use `/lcc` commands to verify functionality
-4. Check Lua errors with `/luaerror on`
+4. Check Lua errors with `/luaerror on` in-game
+5. Test spell cast failures on various cooldowns
 
 ### Validation
 - Check `.toc` file syntax (must start with `## Interface: XXXXXX`)
 - Verify Lua syntax: `lua -c LucyCursorCooldowns.lua` (if Lua interpreter available)
-- No build process - files loaded directly by WoW
+- No automated linting - manual code review only
 
 ## Code Style Guidelines
 
@@ -64,9 +71,11 @@ No automated tests currently exist. Manual testing required:
 #### WoW API Patterns
 - Event registration: Always register events before setting handlers
 - Frame creation: `CreateFrame("Type", "GlobalName", parent, "template")`
-- Unit filtering: Use `RegisterUnitEvent` for unit-specific events
-- Color codes: Use `|cFFRRGGBB` format (e.g., `|cFF00FF00` for green)
+- Unit filtering: Use `RegisterUnitEvent` for unit-specific events when possible
+- Color codes: Use `|cFFRRGGBB` format (e.g., `|cFF00FF00` green, `|cFFFF0000` red, `|r` reset)
 - Saved variables: Declare in `.toc` with `## SavedVariables:` or `## SavedVariablesPerCharacter:`
+- Timers: Use `C_Timer.NewTimer()` for one-shot, `C_Timer.NewTicker()` for repeating
+- Spell info: Use `C_Spell.*` namespace (not deprecated GetSpellInfo function)
 
 #### Error Handling
 - Validate inputs: Check for nil/invalid values
@@ -86,10 +95,12 @@ No automated tests currently exist. Manual testing required:
 - Convert input to lowercase: `msg = string.lower(msg or "")`
 
 #### Frames and UI
-- Use Blizzard templates when possible: `"BasicFrameTemplateWithInset"`, `"UICheckButtonTemplate"`
-- Make frames movable with drag handlers
-- Reuse frames: Check if exists before creating
-- Clean up: Store frame references for reuse
+- Use Blizzard templates: `"BasicFrameTemplateWithInset"`, `"UICheckButtonTemplate"`, `"OptionsSliderTemplate"`
+- Make frames movable with drag handlers (`:EnableMouse()`, `:RegisterForDrag()`)
+- Reuse frames: Check if exists before creating (store in addon table)
+- ScrollFrames: Use `"UIPanelScrollFrameTemplate"` with `:SetScrollChild()`
+- Cooldown frames: Use `"CooldownFrameTemplate"` with `:SetCooldown(startTime, duration)`
+- Clean up: Store frame references in addon table for reuse
 
 ## Common Patterns
 
@@ -128,9 +139,10 @@ print(message .. status)
 - Split into modules when file exceeds ~500 lines
 
 ## WoW API Version
-- Current interface: 110002 (WoW 11.0.2)
+- Current interface: 120000 (WoW 12.0.0)
 - Update `## Interface:` in `.toc` for new patches
 - Check API changes on Wowpedia/Warcraft Wiki
+- Using modern Spell API: `C_Spell.GetSpellInfo`, `C_Spell.GetSpellCooldown`, `C_Spell.GetSpellTexture`
 
 ## Common Pitfalls
 - Don't use Lua 5.2+ features (WoW uses Lua 5.1)
@@ -146,5 +158,12 @@ print(message .. status)
 
 ## Git Workflow
 - Commit messages: Concise, imperative mood ("Add feature" not "Added feature")
-- No commits yet in this repo - start fresh with clear messages
+- Recent commits show simple style: "Add config", "Buggy but somewhat works"
 - Branch naming: descriptive lowercase with hyphens
+- Keep commits atomic and focused on single changes
+
+## Build Output
+- `.release/` directory contains build artifacts (gitignored)
+- Built addon in `.release/LucyCursorCooldowns/`
+- Only `.toc` and `.lua` files included (AGENTS.md excluded via `.pkgmeta`)
+- CHANGELOG.md auto-generated from git commits during build
