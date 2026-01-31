@@ -126,10 +126,6 @@ function LCC:OnAddonLoaded()
     print("|cFF00FF00LucyCursorCooldowns|r loaded successfully!")
 
     -- Initialize saved variables with defaults
-    if LucyCursorCooldownsDB.enabled == nil then
-        LucyCursorCooldownsDB.enabled = true
-    end
-
     -- Icon size (frame and border sizes are calculated from this)
     if not LucyCursorCooldownsDB.iconSize then
         LucyCursorCooldownsDB.iconSize = 36
@@ -200,7 +196,6 @@ end
 -- Spellcast failed handler
 function LCC:OnSpellcastFailed(unit, castGUID, spellID)
     if unit ~= "player" then return end
-    if not LucyCursorCooldownsDB.enabled then return end
 
     -- Get cooldown information using pcall to handle secret values during combat
     local success, cooldownInfo = pcall(C_Spell.GetSpellCooldown, spellID)
@@ -384,22 +379,6 @@ function LCC:ShowOptionsFrame()
 
     local yOffset = -10
     local db = LucyCursorCooldownsDB
-
-    -- Enable/Disable checkbox
-    local enableCheckbox = CreateFrame("CheckButton", "LCCEnableCheckbox", content, "UICheckButtonTemplate")
-    enableCheckbox:SetPoint("TOPLEFT", 20, yOffset)
-    enableCheckbox:SetChecked(db.enabled)
-    enableCheckbox.text = enableCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    enableCheckbox.text:SetPoint("LEFT", enableCheckbox, "RIGHT", 5, 0)
-    enableCheckbox.text:SetText("Enable Addon")
-
-    enableCheckbox:SetScript("OnClick", function(self)
-        db.enabled = self:GetChecked()
-        local status = db.enabled and "enabled" or "disabled"
-        print("|cFF00FF00LucyCursorCooldowns|r is now " .. status)
-    end)
-
-    yOffset = yOffset - 40
 
     -- Helper function to create a color picker button
     local function CreateColorPicker(parent, name, label, getValue, setValue)
