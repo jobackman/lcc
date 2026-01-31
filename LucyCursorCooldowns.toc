@@ -8,7 +8,8 @@
 ## Title: Lucy Cursor Cooldowns
 ## Notes: Displays cursor
 ## Author: LucyON
-## Version: @project-version@
 ## SavedVariables: LucyCursorCooldownsDB
+## Version: @project-version@
+## X-Curse-Project-ID: 1450410
 
 LucyCursorCooldowns.lua
