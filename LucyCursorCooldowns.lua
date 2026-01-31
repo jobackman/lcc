@@ -25,6 +25,13 @@ cooldownFrame.icon:SetSize(36, 36)
 cooldownFrame.icon:SetPoint("CENTER")
 cooldownFrame.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
 
+-- Icon border (1 pixel black border)
+cooldownFrame.border = cooldownFrame:CreateTexture(nil, "BORDER")
+cooldownFrame.border:SetSize(38, 38)
+cooldownFrame.border:SetPoint("CENTER")
+cooldownFrame.border:SetColorTexture(0, 0, 0, 1)
+cooldownFrame.border:SetDrawLayer("BORDER", -1)
+
 -- Cooldown swipe
 cooldownFrame.cooldown = CreateFrame("Cooldown", nil, cooldownFrame, "CooldownFrameTemplate")
 cooldownFrame.cooldown:SetSize(36, 36)
@@ -93,11 +100,25 @@ function LCC:UpdateFrameSizes()
 
     -- Update icon and cooldown sizes to match
     local iconSize = db.iconSize
+    local borderSize = db.borderSize or 2
 
     -- Frame should be the same as icon size (no extra padding needed)
     cooldownFrame:SetSize(iconSize, iconSize)
     cooldownFrame.icon:SetSize(iconSize, iconSize)
     cooldownFrame.cooldown:SetSize(iconSize, iconSize)
+    cooldownFrame.border:SetSize(iconSize + (borderSize * 2), iconSize + (borderSize * 2))
+
+    -- Apply border visibility and color
+    if db.showBorder then
+        cooldownFrame.border:Show()
+        local bc = db.borderColor
+        cooldownFrame.border:SetColorTexture(bc.r, bc.g, bc.b, bc.a)
+    else
+        cooldownFrame.border:Hide()
+    end
+
+    -- Apply DrawEdge setting
+    cooldownFrame.cooldown:SetDrawEdge(db.drawEdge)
 end
 
 -- Addon loaded handler
@@ -138,6 +159,22 @@ function LCC:OnAddonLoaded()
         LucyCursorCooldownsDB.initialYOffset = 10
     end
 
+    -- Border settings
+    if LucyCursorCooldownsDB.showBorder == nil then
+        LucyCursorCooldownsDB.showBorder = true
+    end
+    if not LucyCursorCooldownsDB.borderColor then
+        LucyCursorCooldownsDB.borderColor = {r = 0, g = 0, b = 0, a = 1}
+    end
+    if not LucyCursorCooldownsDB.borderSize then
+        LucyCursorCooldownsDB.borderSize = 2
+    end
+
+    -- Cooldown edge settings
+    if LucyCursorCooldownsDB.drawEdge == nil then
+        LucyCursorCooldownsDB.drawEdge = true
+    end
+
     -- Apply initial sizes to the cooldown frame
     LCC:UpdateFrameSizes()
 end
@@ -146,12 +183,12 @@ end
 local function IsSafeValue(value)
     -- If value is nil, it's safe (just not available)
     if value == nil then return true end
-    
+
     -- Try to use the value in a protected call
     local success = pcall(function()
-        local _ = value > 0  -- Attempt comparison
+        local _ = value > 0 -- Attempt comparison
     end)
-    
+
     return success
 end
 
@@ -162,17 +199,17 @@ function LCC:OnSpellcastFailed(unit, castGUID, spellID)
 
     -- Get cooldown information using pcall to handle secret values during combat
     local success, cooldownInfo = pcall(C_Spell.GetSpellCooldown, spellID)
-    
+
     -- If the call failed or returned nil, we can't proceed
     if not success or not cooldownInfo then
         return -- Fail silently - likely in combat with restricted API access
     end
-    
+
     -- Check if the duration field is accessible (not a secret value)
     if not IsSafeValue(cooldownInfo.duration) then
         return -- Fail silently - duration is a secret value (combat restriction)
     end
-    
+
     -- At this point, we have safe access to cooldown data
     if cooldownInfo.duration and cooldownInfo.duration > 0 then
         -- Verify startTime is also safe before using it
@@ -331,7 +368,7 @@ function LCC:ShowOptionsFrame()
 
     -- Create content frame for scroll frame
     local content = CreateFrame("Frame", "LCCScrollContent", scrollFrame)
-    content:SetSize(350, 600) -- Height can be larger than the scroll frame
+    content:SetSize(350, 750) -- Height can be larger than the scroll frame
     scrollFrame:SetScrollChild(content)
 
     local yOffset = -10
@@ -352,6 +389,67 @@ function LCC:ShowOptionsFrame()
     end)
 
     yOffset = yOffset - 40
+
+    -- Helper function to create a color picker button
+    local function CreateColorPicker(parent, name, label, getValue, setValue)
+        local colorFrame = CreateFrame("Frame", name, parent)
+        colorFrame:SetSize(300, 30)
+        colorFrame:SetPoint("TOPLEFT", 30, yOffset)
+
+        -- Label
+        local labelText = colorFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        labelText:SetPoint("LEFT", 0, 0)
+        labelText:SetText(label)
+
+        -- Color swatch
+        local colorSwatch = CreateFrame("Button", name .. "Swatch", colorFrame)
+        colorSwatch:SetSize(30, 20)
+        colorSwatch:SetPoint("LEFT", 200, 0)
+
+        local colorTexture = colorSwatch:CreateTexture(nil, "BACKGROUND")
+        colorTexture:SetAllPoints(colorSwatch)
+        local color = getValue()
+        colorTexture:SetColorTexture(color.r, color.g, color.b, color.a or 1)
+        colorSwatch.texture = colorTexture
+
+        -- Border for the color swatch
+        local swatchBorder = colorSwatch:CreateTexture(nil, "BORDER")
+        swatchBorder:SetSize(32, 22)
+        swatchBorder:SetPoint("CENTER")
+        swatchBorder:SetColorTexture(0.5, 0.5, 0.5, 1)
+        swatchBorder:SetDrawLayer("BORDER", -1)
+
+        colorSwatch:SetScript("OnClick", function()
+            local color = getValue()
+            local function OnColorSelect(restore)
+                local newR, newG, newB, newA
+                if restore then
+                    newR, newG, newB, newA = restore.r, restore.g, restore.b, restore.a
+                else
+                    newR, newG, newB = ColorPickerFrame:GetColorRGB()
+                    newA = ColorPickerFrame:GetColorAlpha()
+                end
+                
+                setValue({r = newR, g = newG, b = newB, a = newA})
+                colorTexture:SetColorTexture(newR, newG, newB, newA)
+                LCC:UpdateFrameSizes()
+            end
+
+            ColorPickerFrame:SetupColorPickerAndShow({
+                r = color.r,
+                g = color.g,
+                b = color.b,
+                opacity = color.a,
+                hasOpacity = true,
+                swatchFunc = OnColorSelect,
+                opacityFunc = OnColorSelect,
+                cancelFunc = OnColorSelect,
+            })
+        end)
+
+        yOffset = yOffset - 40
+        return colorFrame
+    end
 
     -- Helper function to create a slider
     local function CreateSlider(parent, name, label, minVal, maxVal, step, getValue, setValue, tooltip)
@@ -448,6 +546,59 @@ function LCC:ShowOptionsFrame()
         function(val) db.cursorOffsetY = val end,
         "Vertical offset from cursor position")
 
+    -- Section: Border Settings
+    local borderHeader = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+    borderHeader:SetPoint("TOPLEFT", 20, yOffset)
+    borderHeader:SetText("Border Settings")
+    yOffset = yOffset - 30
+
+    -- Show border checkbox
+    local showBorderCheckbox = CreateFrame("CheckButton", "LCCShowBorderCheckbox", content, "UICheckButtonTemplate")
+    showBorderCheckbox:SetPoint("TOPLEFT", 30, yOffset)
+    showBorderCheckbox:SetChecked(db.showBorder)
+    showBorderCheckbox.text = showBorderCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    showBorderCheckbox.text:SetPoint("LEFT", showBorderCheckbox, "RIGHT", 5, 0)
+    showBorderCheckbox.text:SetText("Show Border")
+
+    showBorderCheckbox:SetScript("OnClick", function(self)
+        db.showBorder = self:GetChecked()
+        LCC:UpdateFrameSizes()
+    end)
+
+    yOffset = yOffset - 40
+
+    -- Border color picker
+    CreateColorPicker(content, "LCCBorderColorPicker", "Border Color:",
+        function() return db.borderColor end,
+        function(color) db.borderColor = color end)
+
+    -- Border size slider
+    CreateSlider(content, "LCCBorderSizeSlider", "Border Size", 1, 10, 1,
+        function() return db.borderSize end,
+        function(val) db.borderSize = val end,
+        "Thickness of the border in pixels")
+
+    -- Section: Cooldown Settings
+    local cooldownHeader = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+    cooldownHeader:SetPoint("TOPLEFT", 20, yOffset)
+    cooldownHeader:SetText("Cooldown Display Settings")
+    yOffset = yOffset - 30
+
+    -- Draw edge checkbox
+    local drawEdgeCheckbox = CreateFrame("CheckButton", "LCCDrawEdgeCheckbox", content, "UICheckButtonTemplate")
+    drawEdgeCheckbox:SetPoint("TOPLEFT", 30, yOffset)
+    drawEdgeCheckbox:SetChecked(db.drawEdge)
+    drawEdgeCheckbox.text = drawEdgeCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    drawEdgeCheckbox.text:SetPoint("LEFT", drawEdgeCheckbox, "RIGHT", 5, 0)
+    drawEdgeCheckbox.text:SetText("Draw Cooldown Edge")
+
+    drawEdgeCheckbox:SetScript("OnClick", function(self)
+        db.drawEdge = self:GetChecked()
+        LCC:UpdateFrameSizes()
+    end)
+
+    yOffset = yOffset - 40
+
     -- Reset button
     yOffset = yOffset - 10
     local resetButton = CreateFrame("Button", "LCCResetButton", content, "UIPanelButtonTemplate")
@@ -463,6 +614,10 @@ function LCC:ShowOptionsFrame()
         db.fadeDuration = 0.5
         db.animateInDuration = 0.2
         db.initialYOffset = 10
+        db.showBorder = true
+        db.borderColor = {r = 0, g = 0, b = 0, a = 1}
+        db.borderSize = 2
+        db.drawEdge = true
 
         -- Update all sliders
         LCC.optionsFrame:Hide()
