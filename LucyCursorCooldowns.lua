@@ -178,6 +178,9 @@ function LCC:OnAddonLoaded()
 
     -- Apply initial sizes to the cooldown frame
     LCC:UpdateFrameSizes()
+
+    -- Register addon settings in the native Options panel
+    LCC:RegisterSettings()
 end
 
 -- Helper function to safely check if a value is a secret variable
@@ -339,6 +342,357 @@ SlashCmdList["LUCYCURSORCOOLDOWNS"] = function(msg)
     LCC:ShowOptionsFrame()
 end
 
+-- Shared settings definition
+-- This ensures both the native panel and standalone frame use the same settings
+LCC.settingsDefinition = {
+    {
+        type = "header",
+        text = "Size Settings"
+    },
+    {
+        type = "slider",
+        label = "Icon Size",
+        key = "iconSize",
+        min = 24,
+        max = 64,
+        step = 1,
+        tooltip = "Size of the spell icon and cooldown display"
+    },
+    {
+        type = "header",
+        text = "Timing Settings"
+    },
+    {
+        type = "slider",
+        label = "Fadeout Delay",
+        key = "fadeoutDelay",
+        min = 0.5,
+        max = 5.0,
+        step = 0.1,
+        tooltip = "Seconds before icon starts fading out"
+    },
+    {
+        type = "slider",
+        label = "Fade Duration",
+        key = "fadeDuration",
+        min = 0.1,
+        max = 2.0,
+        step = 0.1,
+        tooltip = "Duration of the fade-out animation"
+    },
+    {
+        type = "slider",
+        label = "Animate-In Duration",
+        key = "animateInDuration",
+        min = 0.05,
+        max = 1.0,
+        step = 0.05,
+        tooltip = "Duration of the pop-in animation"
+    },
+    {
+        type = "slider",
+        label = "Min Cooldown Threshold",
+        key = "minCooldownThreshold",
+        min = 0.0,
+        max = 5.0,
+        step = 0.1,
+        tooltip = "Minimum cooldown duration to show (filters out GCD)"
+    },
+    {
+        type = "header",
+        text = "Animation Settings"
+    },
+    {
+        type = "slider",
+        label = "Initial Y Offset",
+        key = "initialYOffset",
+        min = 0,
+        max = 30,
+        step = 1,
+        tooltip = "Starting vertical offset for pop-in animation"
+    },
+    {
+        type = "header",
+        text = "Cursor Offset"
+    },
+    {
+        type = "slider",
+        label = "Cursor Offset X",
+        key = "cursorOffsetX",
+        min = 0,
+        max = 100,
+        step = 5,
+        tooltip = "Horizontal offset from cursor position"
+    },
+    {
+        type = "slider",
+        label = "Cursor Offset Y",
+        key = "cursorOffsetY",
+        min = 0,
+        max = 100,
+        step = 5,
+        tooltip = "Vertical offset from cursor position"
+    },
+    {
+        type = "header",
+        text = "Border Settings"
+    },
+    {
+        type = "checkbox",
+        label = "Show Border",
+        key = "showBorder",
+        tooltip = "Show a border around the cooldown icon"
+    },
+    {
+        type = "color",
+        label = "Border Color",
+        key = "borderColor",
+        tooltip = "Color of the border"
+    },
+    {
+        type = "slider",
+        label = "Border Size",
+        key = "borderSize",
+        min = 1,
+        max = 10,
+        step = 1,
+        tooltip = "Thickness of the border"
+    },
+    {
+        type = "header",
+        text = "Cooldown Display"
+    },
+    {
+        type = "checkbox",
+        label = "Draw Cooldown Edge",
+        key = "drawEdge",
+        tooltip = "Show edge highlight on cooldown swipe"
+    }
+}
+
+-- Default values for all settings
+LCC.defaults = {
+    iconSize = 34,
+    cursorOffsetX = 30,
+    cursorOffsetY = 30,
+    fadeoutDelay = 0.1,
+    fadeDuration = 0.5,
+    animateInDuration = 0.2,
+    initialYOffset = 15,
+    showBorder = true,
+    borderColor = { r = 0, g = 0, b = 0, a = 1 },
+    borderSize = 2,
+    drawEdge = true,
+    minCooldownThreshold = 2.0
+}
+
+-- Reset settings to defaults
+function LCC:ResetToDefaults()
+    for key, value in pairs(LCC.defaults) do
+        if type(value) == "table" then
+            -- Deep copy for tables (like borderColor)
+            LucyCursorCooldownsDB[key] = {}
+            for k, v in pairs(value) do
+                LucyCursorCooldownsDB[key][k] = v
+            end
+        else
+            LucyCursorCooldownsDB[key] = value
+        end
+    end
+    LCC:UpdateFrameSizes()
+end
+
+-- Register addon settings in the native Options panel
+function LCC:RegisterSettings()
+    -- Try modern Settings API first (Dragonflight and later)
+    if Settings and Settings.RegisterCanvasLayoutCategory then
+        local category, layout = Settings.RegisterCanvasLayoutCategory(LCC.optionsPanel or LCC:CreateOptionsPanel(),
+            "Lucy Cursor Cooldowns")
+        Settings.RegisterAddOnCategory(category)
+        LCC.settingsCategory = category
+        -- Fall back to InterfaceOptions for older versions
+    elseif InterfaceOptions_AddCategory then
+        local panel = LCC:CreateOptionsPanel()
+        InterfaceOptions_AddCategory(panel)
+        LCC.optionsPanel = panel
+    end
+end
+
+-- Create the options panel for the native settings UI
+function LCC:CreateOptionsPanel()
+    if LCC.optionsPanel then
+        return LCC.optionsPanel
+    end
+
+    local panel = CreateFrame("Frame", "LucyCursorCooldownsOptionsPanel")
+    panel.name = "Lucy Cursor Cooldowns"
+
+    -- Title
+    local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", 16, -16)
+    title:SetText("Lucy Cursor Cooldowns")
+
+    -- Subtitle
+    local subtitle = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
+    subtitle:SetText("Configure cursor cooldown display settings")
+
+    -- Info text about slash command
+    local infoText = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    infoText:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -20)
+    infoText:SetText("Type |cFFFFFF00/lcc|r to open the advanced settings window with color picker")
+    infoText:SetFont(infoText:GetFont(), 14, "OUTLINE")
+
+    -- Create scroll frame for settings
+    local scrollFrame = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
+    scrollFrame:SetPoint("TOPLEFT", infoText, "BOTTOMLEFT", 0, -20)
+    scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -28, 10)
+
+    -- Content frame
+    local content = CreateFrame("Frame", nil, scrollFrame)
+    content:SetSize(1, 1)
+    scrollFrame:SetScrollChild(content)
+
+    local yOffset = -10
+    local db = LucyCursorCooldownsDB
+
+    -- Helper function to create inline sliders
+    local function CreateInlineSlider(parent, setting)
+        local container = CreateFrame("Frame", nil, parent)
+        container:SetSize(580, 50)
+        container:SetPoint("TOPLEFT", 10, yOffset)
+
+        -- Label
+        local labelText = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        labelText:SetPoint("TOPLEFT", 0, -5)
+        labelText:SetText(setting.label)
+
+        -- Slider (using BackdropTemplate for modern WoW)
+        local slider = CreateFrame("Slider", nil, container, BackdropTemplateMixin and "BackdropTemplate")
+        slider:SetPoint("TOPLEFT", 0, -25)
+        slider:SetMinMaxValues(setting.min, setting.max)
+        slider:SetValueStep(setting.step)
+        slider:SetObeyStepOnDrag(true)
+        slider:SetValue(db[setting.key])
+        slider:SetWidth(400)
+        slider:SetHeight(17)
+        slider:SetOrientation("HORIZONTAL")
+
+        -- Slider backdrop (only if BackdropTemplate is available)
+        if slider.SetBackdrop then
+            slider:SetBackdrop({
+                bgFile = "Interface\\Buttons\\UI-SliderBar-Background",
+                edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
+                tile = true,
+                tileSize = 8,
+                edgeSize = 8,
+                insets = { left = 3, right = 3, top = 6, bottom = 6 }
+            })
+        end
+
+        -- Slider thumb texture
+        local thumb = slider:CreateTexture(nil, "ARTWORK")
+        thumb:SetTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
+        thumb:SetSize(32, 32)
+        slider:SetThumbTexture(thumb)
+
+        -- Value label
+        slider.valueLabel = slider:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        slider.valueLabel:SetPoint("LEFT", slider, "RIGHT", 10, 0)
+        slider.valueLabel:SetText(string.format("%.2f", db[setting.key]))
+
+        -- Min/Max labels
+        local minLabel = slider:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        minLabel:SetPoint("TOPLEFT", slider, "BOTTOMLEFT", 0, 2)
+        minLabel:SetText(setting.min)
+
+        local maxLabel = slider:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        maxLabel:SetPoint("TOPRIGHT", slider, "BOTTOMRIGHT", 0, 2)
+        maxLabel:SetText(setting.max)
+
+        slider:SetScript("OnValueChanged", function(self, value)
+            db[setting.key] = value
+            slider.valueLabel:SetText(string.format("%.2f", value))
+            LCC:UpdateFrameSizes()
+        end)
+
+        if setting.tooltip then
+            container.tooltipText = setting.tooltip
+        end
+
+        yOffset = yOffset - 60
+        return container
+    end
+
+    -- Helper function to create checkboxes
+    local function CreateInlineCheckbox(parent, setting)
+        local checkbox = CreateFrame("CheckButton", nil, parent, "InterfaceOptionsCheckButtonTemplate")
+        checkbox:SetPoint("TOPLEFT", 10, yOffset)
+        checkbox:SetChecked(db[setting.key])
+        checkbox.Text:SetText(setting.label)
+
+        checkbox:SetScript("OnClick", function(self)
+            db[setting.key] = self:GetChecked()
+            LCC:UpdateFrameSizes()
+        end)
+
+        if setting.tooltip then
+            checkbox.tooltipText = setting.tooltip
+        end
+
+        yOffset = yOffset - 30
+        return checkbox
+    end
+
+    -- Section headers
+    local function CreateHeader(parent, text)
+        local header = parent:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+        header:SetPoint("TOPLEFT", 10, yOffset)
+        header:SetText(text)
+        yOffset = yOffset - 25
+        return header
+    end
+
+    -- Build UI from settings definition
+    for _, setting in ipairs(LCC.settingsDefinition) do
+        if setting.type == "header" then
+            CreateHeader(content, setting.text)
+        elseif setting.type == "slider" then
+            CreateInlineSlider(content, setting)
+        elseif setting.type == "checkbox" then
+            CreateInlineCheckbox(content, setting)
+        elseif setting.type == "color" then
+            -- Skip color picker in native panel (not easily supported)
+            -- User can use /lcc for advanced settings with color picker
+        end
+    end
+
+    -- Set content height based on yOffset
+    content:SetSize(580, math.abs(yOffset) + 20)
+
+    -- Refresh function for settings panel
+    panel.refresh = function()
+        -- This is called when the panel is shown
+        -- We could refresh all slider values here if needed
+    end
+
+    -- Default button handler
+    panel.default = function()
+        LCC:ResetToDefaults()
+
+        -- Refresh the panel by recreating it
+        LCC.optionsPanel = nil
+        if Settings and LCC.settingsCategory then
+            Settings.OpenToCategory(LCC.settingsCategory:GetID())
+        end
+
+        print("|cFF00FF00LucyCursorCooldowns|r settings reset to defaults")
+    end
+
+    LCC.optionsPanel = panel
+    return panel
+end
+
 -- Create options frame
 function LCC:ShowOptionsFrame()
     if LCC.optionsFrame then
@@ -381,7 +735,7 @@ function LCC:ShowOptionsFrame()
     local db = LucyCursorCooldownsDB
 
     -- Helper function to create a color picker button
-    local function CreateColorPicker(parent, name, label, getValue, setValue)
+    local function CreateColorPicker(parent, name, setting)
         local colorFrame = CreateFrame("Frame", name, parent)
         colorFrame:SetSize(300, 30)
         colorFrame:SetPoint("TOPLEFT", 30, yOffset)
@@ -389,7 +743,7 @@ function LCC:ShowOptionsFrame()
         -- Label
         local labelText = colorFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         labelText:SetPoint("LEFT", 0, 0)
-        labelText:SetText(label)
+        labelText:SetText(setting.label .. ":")
 
         -- Color swatch
         local colorSwatch = CreateFrame("Button", name .. "Swatch", colorFrame)
@@ -398,7 +752,7 @@ function LCC:ShowOptionsFrame()
 
         local colorTexture = colorSwatch:CreateTexture(nil, "BACKGROUND")
         colorTexture:SetAllPoints(colorSwatch)
-        local color = getValue()
+        local color = db[setting.key]
         colorTexture:SetColorTexture(color.r, color.g, color.b, color.a or 1)
         colorSwatch.texture = colorTexture
 
@@ -410,7 +764,7 @@ function LCC:ShowOptionsFrame()
         swatchBorder:SetDrawLayer("BORDER", -1)
 
         colorSwatch:SetScript("OnClick", function()
-            local color = getValue()
+            local color = db[setting.key]
             local function OnColorSelect(restore)
                 local newR, newG, newB, newA
                 if restore then
@@ -420,7 +774,7 @@ function LCC:ShowOptionsFrame()
                     newA = ColorPickerFrame:GetColorAlpha()
                 end
 
-                setValue({ r = newR, g = newG, b = newB, a = newA })
+                db[setting.key] = { r = newR, g = newG, b = newB, a = newA }
                 colorTexture:SetColorTexture(newR, newG, newB, newA)
                 LCC:UpdateFrameSizes()
             end
@@ -442,157 +796,86 @@ function LCC:ShowOptionsFrame()
     end
 
     -- Helper function to create a slider
-    local function CreateSlider(parent, name, label, minVal, maxVal, step, getValue, setValue, tooltip)
+    local function CreateSlider(parent, name, setting)
         local slider = CreateFrame("Slider", name, parent, "OptionsSliderTemplate")
         slider:SetPoint("TOPLEFT", 30, yOffset)
-        slider:SetMinMaxValues(minVal, maxVal)
-        slider:SetValueStep(step)
+        slider:SetMinMaxValues(setting.min, setting.max)
+        slider:SetValueStep(setting.step)
         slider:SetObeyStepOnDrag(true)
-        slider:SetValue(getValue())
+        slider:SetValue(db[setting.key])
         slider:SetWidth(300)
 
         -- Set label
-        getglobal(slider:GetName() .. "Text"):SetText(label)
+        getglobal(slider:GetName() .. "Text"):SetText(setting.label)
 
         -- Value label
         slider.valueLabel = slider:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         slider.valueLabel:SetPoint("TOP", slider, "BOTTOM", 0, 0)
-        slider.valueLabel:SetText(string.format("%.2f", getValue()))
+        slider.valueLabel:SetText(string.format("%.2f", db[setting.key]))
 
         -- Min/Max labels
-        getglobal(slider:GetName() .. "Low"):SetText(minVal)
-        getglobal(slider:GetName() .. "High"):SetText(maxVal)
+        getglobal(slider:GetName() .. "Low"):SetText(setting.min)
+        getglobal(slider:GetName() .. "High"):SetText(setting.max)
 
         slider:SetScript("OnValueChanged", function(self, value)
-            setValue(value)
+            db[setting.key] = value
             slider.valueLabel:SetText(string.format("%.2f", value))
             LCC:UpdateFrameSizes()
         end)
 
-        if tooltip then
-            slider.tooltipText = tooltip
+        if setting.tooltip then
+            slider.tooltipText = setting.tooltip
         end
 
         yOffset = yOffset - 50
         return slider
     end
 
-    -- Section: Size Settings
-    local sizeHeader = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-    sizeHeader:SetPoint("TOPLEFT", 20, yOffset)
-    sizeHeader:SetText("Size Settings")
-    yOffset = yOffset - 30
+    -- Helper function to create a checkbox
+    local function CreateCheckbox(parent, setting)
+        local checkbox = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
+        checkbox:SetPoint("TOPLEFT", 30, yOffset)
+        checkbox:SetChecked(db[setting.key])
+        checkbox.text = checkbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        checkbox.text:SetPoint("LEFT", checkbox, "RIGHT", 5, 0)
+        checkbox.text:SetText(setting.label)
 
-    CreateSlider(content, "LCCIconSizeSlider", "Icon Size", 24, 64, 1,
-        function() return db.iconSize end,
-        function(val) db.iconSize = val end,
-        "Size of the spell icon and cooldown display")
+        checkbox:SetScript("OnClick", function(self)
+            db[setting.key] = self:GetChecked()
+            LCC:UpdateFrameSizes()
+        end)
 
-    -- Section: Timing Settings
-    local timingHeader = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-    timingHeader:SetPoint("TOPLEFT", 20, yOffset)
-    timingHeader:SetText("Timing Settings")
-    yOffset = yOffset - 30
+        if setting.tooltip then
+            checkbox.tooltipText = setting.tooltip
+        end
 
-    CreateSlider(content, "LCCFadeoutDelaySlider", "Fadeout Delay", 0.5, 5.0, 0.1,
-        function() return db.fadeoutDelay end,
-        function(val) db.fadeoutDelay = val end,
-        "Seconds before icon starts fading out")
+        yOffset = yOffset - 40
+        return checkbox
+    end
 
-    CreateSlider(content, "LCCFadeDurationSlider", "Fade Duration", 0.1, 2.0, 0.1,
-        function() return db.fadeDuration end,
-        function(val) db.fadeDuration = val end,
-        "Duration of the fade-out animation")
+    -- Helper function to create section headers
+    local function CreateHeader(parent, text)
+        local header = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
+        header:SetPoint("TOPLEFT", 20, yOffset)
+        header:SetText(text)
+        yOffset = yOffset - 30
+        return header
+    end
 
-    CreateSlider(content, "LCCAnimateInDurationSlider", "Animate-In Duration", 0.05, 1.0, 0.05,
-        function() return db.animateInDuration end,
-        function(val) db.animateInDuration = val end,
-        "Duration of the pop-in animation")
-
-    CreateSlider(content, "LCCMinCooldownThresholdSlider", "Min Cooldown Threshold", 0.0, 5.0, 0.1,
-        function() return db.minCooldownThreshold end,
-        function(val) db.minCooldownThreshold = val end,
-        "Minimum cooldown duration to show icon (filters out GCD)")
-
-    -- Section: Animation Settings
-    local animHeader = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-    animHeader:SetPoint("TOPLEFT", 20, yOffset)
-    animHeader:SetText("Animation Settings")
-    yOffset = yOffset - 30
-
-    CreateSlider(content, "LCCInitialYOffsetSlider", "Initial Y Offset", 0, 30, 1,
-        function() return db.initialYOffset end,
-        function(val) db.initialYOffset = val end,
-        "Starting vertical offset for pop-in animation")
-
-    -- Section: Position Settings
-    local posHeader = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-    posHeader:SetPoint("TOPLEFT", 20, yOffset)
-    posHeader:SetText("Cursor Offset")
-    yOffset = yOffset - 30
-
-    CreateSlider(content, "LCCCursorOffsetXSlider", "Cursor Offset X", 0, 100, 5,
-        function() return db.cursorOffsetX end,
-        function(val) db.cursorOffsetX = val end,
-        "Horizontal offset from cursor position")
-
-    CreateSlider(content, "LCCCursorOffsetYSlider", "Cursor Offset Y", 0, 100, 5,
-        function() return db.cursorOffsetY end,
-        function(val) db.cursorOffsetY = val end,
-        "Vertical offset from cursor position")
-
-    -- Section: Border Settings
-    local borderHeader = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-    borderHeader:SetPoint("TOPLEFT", 20, yOffset)
-    borderHeader:SetText("Border Settings")
-    yOffset = yOffset - 30
-
-    -- Show border checkbox
-    local showBorderCheckbox = CreateFrame("CheckButton", "LCCShowBorderCheckbox", content, "UICheckButtonTemplate")
-    showBorderCheckbox:SetPoint("TOPLEFT", 30, yOffset)
-    showBorderCheckbox:SetChecked(db.showBorder)
-    showBorderCheckbox.text = showBorderCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    showBorderCheckbox.text:SetPoint("LEFT", showBorderCheckbox, "RIGHT", 5, 0)
-    showBorderCheckbox.text:SetText("Show Border")
-
-    showBorderCheckbox:SetScript("OnClick", function(self)
-        db.showBorder = self:GetChecked()
-        LCC:UpdateFrameSizes()
-    end)
-
-    yOffset = yOffset - 40
-
-    -- Border color picker
-    CreateColorPicker(content, "LCCBorderColorPicker", "Border Color:",
-        function() return db.borderColor end,
-        function(color) db.borderColor = color end)
-
-    -- Border size slider
-    CreateSlider(content, "LCCBorderSizeSlider", "Border Size", 1, 10, 1,
-        function() return db.borderSize end,
-        function(val) db.borderSize = val end,
-        "Thickness of the border in pixels")
-
-    -- Section: Cooldown Settings
-    local cooldownHeader = content:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-    cooldownHeader:SetPoint("TOPLEFT", 20, yOffset)
-    cooldownHeader:SetText("Cooldown Display Settings")
-    yOffset = yOffset - 30
-
-    -- Draw edge checkbox
-    local drawEdgeCheckbox = CreateFrame("CheckButton", "LCCDrawEdgeCheckbox", content, "UICheckButtonTemplate")
-    drawEdgeCheckbox:SetPoint("TOPLEFT", 30, yOffset)
-    drawEdgeCheckbox:SetChecked(db.drawEdge)
-    drawEdgeCheckbox.text = drawEdgeCheckbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    drawEdgeCheckbox.text:SetPoint("LEFT", drawEdgeCheckbox, "RIGHT", 5, 0)
-    drawEdgeCheckbox.text:SetText("Draw Cooldown Edge")
-
-    drawEdgeCheckbox:SetScript("OnClick", function(self)
-        db.drawEdge = self:GetChecked()
-        LCC:UpdateFrameSizes()
-    end)
-
-    yOffset = yOffset - 40
+    -- Build UI from settings definition
+    local sliderIndex = 1
+    for _, setting in ipairs(LCC.settingsDefinition) do
+        if setting.type == "header" then
+            CreateHeader(content, setting.text)
+        elseif setting.type == "slider" then
+            CreateSlider(content, "LCC" .. setting.key .. "Slider", setting)
+            sliderIndex = sliderIndex + 1
+        elseif setting.type == "checkbox" then
+            CreateCheckbox(content, setting)
+        elseif setting.type == "color" then
+            CreateColorPicker(content, "LCC" .. setting.key .. "Picker", setting)
+        end
+    end
 
     -- Reset button
     yOffset = yOffset - 10
@@ -601,25 +884,12 @@ function LCC:ShowOptionsFrame()
     resetButton:SetPoint("TOPLEFT", 20, yOffset)
     resetButton:SetText("Reset to Defaults")
     resetButton:SetScript("OnClick", function()
-        -- Reset all values to defaults
-        db.iconSize = 34
-        db.cursorOffsetX = 30
-        db.cursorOffsetY = 30
-        db.fadeoutDelay = 0.5
-        db.fadeDuration = 0.1
-        db.animateInDuration = 0.1
-        db.initialYOffset = 20
-        db.showBorder = true
-        db.borderColor = { r = 0, g = 0, b = 0, a = 1 }
-        db.borderSize = 2
-        db.drawEdge = true
-        db.minCooldownThreshold = 2.0
+        LCC:ResetToDefaults()
 
-        -- Update all sliders
+        -- Refresh UI by recreating the options frame
         LCC.optionsFrame:Hide()
         LCC.optionsFrame = nil
         LCC:ShowOptionsFrame()
-        LCC:UpdateFrameSizes()
 
         print("|cFF00FF00LucyCursorCooldowns|r settings reset to defaults")
     end)
