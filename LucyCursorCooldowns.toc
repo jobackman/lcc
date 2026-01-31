@@ -1,8 +1,14 @@
 ## Interface: 120000
+## Interface-Retail: 120000
+## Interface-Classic: 11501
+## Interface-BCC: 20504
+## Interface-Wrath: 30403
+## Interface-Cata: 40402
+## Interface-Mists: 50500
 ## Title: Lucy Cursor Cooldowns
-## Notes: Displays the cooldowns of failed casts at the cursor
-## Author: Your Name
-## Version: 1.0.0
+## Notes: Displays cursor
+## Author: LucyON
+## Version: @project-version@
 ## SavedVariables: LucyCursorCooldownsDB
 
 LucyCursorCooldowns.lua
