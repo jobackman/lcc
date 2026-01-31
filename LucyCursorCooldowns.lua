@@ -49,8 +49,9 @@ end
 function LCC:OnSpellcastFailed(unit, castGUID, spellID)
     if unit ~= "player" then return end
 
-    local spellName = GetSpellInfo(spellID)
-    print("|cFFFF0000Spell cast failed:|r " .. (spellName or "Unknown") .. " (ID: " .. spellID .. ")")
+    local spellInfo = C_Spell.GetSpellInfo(spellID)
+    local spellName = spellInfo and spellInfo.name or "Unknown"
+    print("|cFFFF0000Spell cast failed:|r " .. spellName .. " (ID: " .. spellID .. ")")
 end
 
 -- Slash command handler
