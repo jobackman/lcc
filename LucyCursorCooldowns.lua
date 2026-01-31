@@ -272,27 +272,7 @@ SLASH_LUCYCURSORCOOLDOWNS1 = "/lcc"
 SLASH_LUCYCURSORCOOLDOWNS2 = "/lucycursorcooldowns"
 
 SlashCmdList["LUCYCURSORCOOLDOWNS"] = function(msg)
-    msg = string.lower(msg or "")
-
-    if msg == "" or msg == "help" then
-        print("|cFF00FF00LucyCursorCooldowns Commands:|r")
-        print("  /lcc - Show this help")
-        print("  /lcc config - Open configuration")
-        print("  /lcc toggle - Toggle addon on/off")
-        print("  /lcc status - Show current status")
-    elseif msg == "config" or msg == "options" then
-        LCC:ShowOptionsFrame()
-    elseif msg == "toggle" then
-        LucyCursorCooldownsDB.enabled = not LucyCursorCooldownsDB.enabled
-        local status = LucyCursorCooldownsDB.enabled and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"
-        print("|cFF00FF00LucyCursorCooldowns|r is now " .. status)
-    elseif msg == "status" then
-        local status = LucyCursorCooldownsDB.enabled and "|cFF00FF00enabled|r" or "|cFFFF0000disabled|r"
-        print("|cFF00FF00LucyCursorCooldowns|r status: " .. status)
-    else
-        print("|cFFFF0000Unknown command:|r " .. msg)
-        print("Type |cFF00FF00/lcc help|r for a list of commands")
-    end
+    LCC:ShowOptionsFrame()
 end
 
 -- Create options frame
@@ -308,7 +288,7 @@ function LCC:ShowOptionsFrame()
 
     -- Create the options frame
     local optionsFrame = CreateFrame("Frame", "LucyCursorCooldownsOptionsFrame", UIParent, "BasicFrameTemplateWithInset")
-    optionsFrame:SetSize(500, 500)
+    optionsFrame:SetSize(400, 500)
     optionsFrame:SetPoint("CENTER")
     optionsFrame:SetMovable(true)
     optionsFrame:EnableMouse(true)
@@ -321,7 +301,7 @@ function LCC:ShowOptionsFrame()
     -- Set title
     optionsFrame.title = optionsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     optionsFrame.title:SetPoint("TOP", optionsFrame.TitleBg, "TOP", 0, -5)
-    optionsFrame.title:SetText("Lucy Cursor Cooldowns Options")
+    optionsFrame.title:SetText("Lucy Cursor Cooldowns")
 
     -- Create scroll frame
     local scrollFrame = CreateFrame("ScrollFrame", "LCCScrollFrame", optionsFrame, "UIPanelScrollFrameTemplate")
@@ -330,7 +310,7 @@ function LCC:ShowOptionsFrame()
 
     -- Create content frame for scroll frame
     local content = CreateFrame("Frame", "LCCScrollContent", scrollFrame)
-    content:SetSize(450, 600) -- Height can be larger than the scroll frame
+    content:SetSize(350, 600) -- Height can be larger than the scroll frame
     scrollFrame:SetScrollChild(content)
 
     local yOffset = -10
