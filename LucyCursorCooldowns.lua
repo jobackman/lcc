@@ -545,6 +545,9 @@ function LCC:CreateOptionsPanel()
 
     local panel = CreateFrame("Frame", "LucyCursorCooldownsOptionsPanel")
     panel.name = "Lucy Cursor Cooldowns"
+    
+    -- Get reference to settings database
+    local db = LucyCursorCooldownsDB
 
     -- Title
     local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
@@ -556,9 +559,195 @@ function LCC:CreateOptionsPanel()
     subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
     subtitle:SetText("Configure cursor cooldown display settings")
 
+    -- Preview section
+    local previewHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    previewHeader:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -20)
+    previewHeader:SetText("Preview:")
+
+    -- Preview container frame
+    local previewContainer = CreateFrame("Frame", nil, panel, BackdropTemplateMixin and "BackdropTemplate")
+    previewContainer:SetPoint("TOPLEFT", previewHeader, "BOTTOMLEFT", 0, -10)
+    previewContainer:SetSize(200, 200)
+    if previewContainer.SetBackdrop then
+        previewContainer:SetBackdrop({
+            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+            edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+            tile = true,
+            tileSize = 16,
+            edgeSize = 16,
+            insets = { left = 4, right = 4, top = 4, bottom = 4 }
+        })
+    end
+
+    -- Cursor icon (positioned at bottom-left of preview area to simulate cursor position)
+    local cursorIcon = previewContainer:CreateTexture(nil, "OVERLAY")
+    cursorIcon:SetSize(24, 24)
+    cursorIcon:SetTexture("Interface\\Cursor\\Point")
+    cursorIcon:SetPoint("BOTTOMLEFT", previewContainer, "CENTER", -40, -40)
+
+    -- Preview cooldown icon (positioned relative to cursor)
+    local previewIcon = CreateFrame("Frame", nil, previewContainer)
+    previewIcon:SetFrameStrata("TOOLTIP")
+    previewIcon:SetSize(db.iconSize, db.iconSize)
+    -- Initially hidden, will be shown during animation
+    previewIcon:Hide()
+    previewIcon.animOffsetY = 0
+
+    -- Position relative to cursor with offsets
+    local function UpdatePreviewPosition()
+        local offsetY = previewIcon.animOffsetY or 0
+        previewIcon:SetPoint("BOTTOMLEFT", cursorIcon, "TOPRIGHT", 
+            db.cursorOffsetX or 20, 
+            (db.cursorOffsetY or 20) + offsetY)
+    end
+    UpdatePreviewPosition()
+
+    -- Icon texture
+    previewIcon.icon = previewIcon:CreateTexture(nil, "ARTWORK")
+    previewIcon.icon:SetAllPoints()
+    previewIcon.icon:SetTexture("Interface\\Icons\\Spell_Nature_Lightning") -- Example spell icon
+    previewIcon.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+
+    -- Icon border
+    previewIcon.border = previewIcon:CreateTexture(nil, "BORDER")
+    previewIcon.border:SetPoint("CENTER")
+    local borderSize = db.borderSize or 2
+    previewIcon.border:SetSize(db.iconSize + (borderSize * 2), db.iconSize + (borderSize * 2))
+    if db.showBorder then
+        local bc = db.borderColor
+        previewIcon.border:SetColorTexture(bc.r, bc.g, bc.b, bc.a)
+    else
+        previewIcon.border:Hide()
+    end
+    previewIcon.border:SetDrawLayer("BORDER", -1)
+
+    -- Cooldown swipe
+    previewIcon.cooldown = CreateFrame("Cooldown", nil, previewIcon, "CooldownFrameTemplate")
+    previewIcon.cooldown:SetAllPoints(previewIcon.icon)
+    previewIcon.cooldown:SetDrawEdge(db.drawEdge)
+
+    -- Store preview reference for updates
+    panel.previewIcon = previewIcon
+    panel.cursorIcon = cursorIcon
+
+    -- OnUpdate for animation
+    previewIcon:SetScript("OnUpdate", function(self, elapsed)
+        UpdatePreviewPosition()
+    end)
+
+    -- Function to update preview (static update without animation)
+    local function UpdatePreview()
+        local iconSize = db.iconSize
+        local borderSize = db.borderSize or 2
+        
+        previewIcon:SetSize(iconSize, iconSize)
+        previewIcon.icon:SetAllPoints(previewIcon)
+        previewIcon.border:SetSize(iconSize + (borderSize * 2), iconSize + (borderSize * 2))
+        previewIcon.cooldown:SetAllPoints(previewIcon.icon)
+        previewIcon.cooldown:SetDrawEdge(db.drawEdge)
+        
+        if db.showBorder then
+            previewIcon.border:Show()
+            local bc = db.borderColor
+            previewIcon.border:SetColorTexture(bc.r, bc.g, bc.b, bc.a)
+        else
+            previewIcon.border:Hide()
+        end
+        
+        UpdatePreviewPosition()
+    end
+
+    panel.UpdatePreview = UpdatePreview
+
+    -- Function to play the full animation sequence
+    local animTimer = nil
+    local fadeTimer = nil
+    
+    local function PlayAnimation()
+        -- Cancel any existing timers
+        if animTimer then
+            animTimer:Cancel()
+            animTimer = nil
+        end
+        if fadeTimer then
+            fadeTimer:Cancel()
+            fadeTimer = nil
+        end
+        
+        -- Reset and show icon
+        previewIcon:SetAlpha(0)
+        previewIcon.animOffsetY = db.initialYOffset or 10
+        previewIcon:Show()
+        
+        -- Start cooldown
+        previewIcon.cooldown:SetCooldown(GetTime(), 10)
+        
+        -- Animate in
+        local animDuration = db.animateInDuration or 0.2
+        local animSteps = 15
+        local stepDuration = animDuration / animSteps
+        local currentStep = 0
+        
+        animTimer = C_Timer.NewTicker(stepDuration, function()
+            currentStep = currentStep + 1
+            local progress = currentStep / animSteps
+            local initialYOffset = db.initialYOffset or 10
+            previewIcon.animOffsetY = initialYOffset - (progress * initialYOffset)
+            
+            if currentStep >= animSteps then
+                previewIcon:SetAlpha(1.0)
+                previewIcon.animOffsetY = 0
+                animTimer:Cancel()
+                animTimer = nil
+                
+                -- Schedule fade out
+                fadeTimer = C_Timer.NewTimer(db.fadeoutDelay or 2.0, function()
+                    -- Fade out
+                    local fadeDuration = db.fadeDuration or 0.5
+                    local fadeSteps = 20
+                    local fadeStepDuration = fadeDuration / fadeSteps
+                    local fadeStep = 0
+                    
+                    fadeTimer = C_Timer.NewTicker(fadeStepDuration, function()
+                        fadeStep = fadeStep + 1
+                        local newAlpha = 1.0 - (fadeStep / fadeSteps)
+                        
+                        if newAlpha <= 0 then
+                            previewIcon:Hide()
+                            previewIcon:SetAlpha(1.0)
+                            previewIcon.animOffsetY = 0
+                            fadeTimer:Cancel()
+                            fadeTimer = nil
+                        else
+                            previewIcon:SetAlpha(newAlpha)
+                        end
+                    end)
+                end)
+            else
+                previewIcon:SetAlpha(progress)
+            end
+        end)
+    end
+
+    panel.PlayAnimation = PlayAnimation
+
+    -- Test Animation button
+    local testButton = CreateFrame("Button", nil, previewContainer, "UIPanelButtonTemplate")
+    testButton:SetSize(120, 25)
+    testButton:SetPoint("BOTTOM", previewContainer, "BOTTOM", 0, 10)
+    testButton:SetText("Test Animation")
+    testButton:SetScript("OnClick", function()
+        PlayAnimation()
+    end)
+
+    -- Preview description
+    local previewDesc = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+    previewDesc:SetPoint("TOP", previewContainer, "BOTTOM", 0, -5)
+    previewDesc:SetText("Click 'Test Animation' to see the full effect")
+
     -- Create scroll frame for settings
     local scrollFrame = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -20)
+    scrollFrame:SetPoint("TOPLEFT", previewContainer, "BOTTOMLEFT", 0, -30)
     scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -28, 10)
 
     -- Content frame
@@ -567,7 +756,6 @@ function LCC:CreateOptionsPanel()
     scrollFrame:SetScrollChild(content)
 
     local yOffset = -10
-    local db = LucyCursorCooldownsDB
 
     -- Helper function to create inline sliders
     local function CreateInlineSlider(parent, setting)
@@ -627,6 +815,9 @@ function LCC:CreateOptionsPanel()
             db[setting.key] = value
             slider.valueLabel:SetText(string.format("%.2f", value))
             LCC:UpdateFrameSizes()
+            if panel.UpdatePreview then
+                panel.UpdatePreview()
+            end
         end)
 
         if setting.tooltip then
@@ -647,6 +838,9 @@ function LCC:CreateOptionsPanel()
         checkbox:SetScript("OnClick", function(self)
             db[setting.key] = self:GetChecked()
             LCC:UpdateFrameSizes()
+            if panel.UpdatePreview then
+                panel.UpdatePreview()
+            end
         end)
 
         if setting.tooltip then
@@ -699,6 +893,9 @@ function LCC:CreateOptionsPanel()
                 db[setting.key] = { r = newR, g = newG, b = newB, a = newA }
                 colorTexture:SetColorTexture(newR, newG, newB, newA)
                 LCC:UpdateFrameSizes()
+                if panel.UpdatePreview then
+                    panel.UpdatePreview()
+                end
             end
 
             ColorPickerFrame:SetupColorPickerAndShow({
