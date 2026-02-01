@@ -334,16 +334,35 @@ function LCC:FadeOutCooldownFrame()
     end)
 end
 
--- Slash command handler
+-- Slash command handler - opens native settings panel
 SLASH_LUCYCURSORCOOLDOWNS1 = "/lcc"
 SLASH_LUCYCURSORCOOLDOWNS2 = "/lucycursorcooldowns"
 
 SlashCmdList["LUCYCURSORCOOLDOWNS"] = function(msg)
-    LCC:ShowOptionsFrame()
+    LCC:OpenSettings()
+end
+
+-- Open the native settings panel
+function LCC:OpenSettings()
+    -- Modern API (Dragonflight and later)
+    if Settings and Settings.OpenToCategory then
+        if LCC.settingsCategory then
+            Settings.OpenToCategory(LCC.settingsCategory:GetID())
+        else
+            -- Fallback: open general settings
+            Settings.OpenToCategory(Settings.INTERFACE_CATEGORY_ID)
+        end
+    -- Legacy API (older expansions)
+    elseif InterfaceOptionsFrame_OpenToCategory then
+        if LCC.optionsPanel then
+            InterfaceOptionsFrame_OpenToCategory(LCC.optionsPanel)
+            -- Call twice due to Blizzard bug in older versions
+            InterfaceOptionsFrame_OpenToCategory(LCC.optionsPanel)
+        end
+    end
 end
 
 -- Shared settings definition
--- This ensures both the native panel and standalone frame use the same settings
 LCC.settingsDefinition = {
     {
         type = "header",
@@ -537,15 +556,9 @@ function LCC:CreateOptionsPanel()
     subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
     subtitle:SetText("Configure cursor cooldown display settings")
 
-    -- Info text about slash command
-    local infoText = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    infoText:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -20)
-    infoText:SetText("Type |cFFFFFF00/lcc|r to open the advanced settings window with color picker")
-    infoText:SetFont(infoText:GetFont(), 14, "OUTLINE")
-
     -- Create scroll frame for settings
     local scrollFrame = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", infoText, "BOTTOMLEFT", 0, -20)
+    scrollFrame:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -20)
     scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -28, 10)
 
     -- Content frame
@@ -644,6 +657,70 @@ function LCC:CreateOptionsPanel()
         return checkbox
     end
 
+    -- Helper function to create color pickers
+    local function CreateInlineColorPicker(parent, setting)
+        local container = CreateFrame("Frame", nil, parent)
+        container:SetSize(580, 40)
+        container:SetPoint("TOPLEFT", 10, yOffset)
+
+        -- Label
+        local labelText = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        labelText:SetPoint("LEFT", 0, 0)
+        labelText:SetText(setting.label .. ":")
+
+        -- Color swatch button
+        local colorSwatch = CreateFrame("Button", nil, container)
+        colorSwatch:SetSize(40, 20)
+        colorSwatch:SetPoint("LEFT", 200, 0)
+
+        local colorTexture = colorSwatch:CreateTexture(nil, "BACKGROUND")
+        colorTexture:SetAllPoints(colorSwatch)
+        local color = db[setting.key]
+        colorTexture:SetColorTexture(color.r, color.g, color.b, color.a or 1)
+
+        -- Border for the color swatch
+        local swatchBorder = colorSwatch:CreateTexture(nil, "BORDER")
+        swatchBorder:SetSize(42, 22)
+        swatchBorder:SetPoint("CENTER")
+        swatchBorder:SetColorTexture(0.5, 0.5, 0.5, 1)
+        swatchBorder:SetDrawLayer("BORDER", -1)
+
+        colorSwatch:SetScript("OnClick", function()
+            local currentColor = db[setting.key]
+            local function OnColorSelect(restore)
+                local newR, newG, newB, newA
+                if restore then
+                    newR, newG, newB, newA = restore.r, restore.g, restore.b, restore.a
+                else
+                    newR, newG, newB = ColorPickerFrame:GetColorRGB()
+                    newA = ColorPickerFrame:GetColorAlpha()
+                end
+
+                db[setting.key] = { r = newR, g = newG, b = newB, a = newA }
+                colorTexture:SetColorTexture(newR, newG, newB, newA)
+                LCC:UpdateFrameSizes()
+            end
+
+            ColorPickerFrame:SetupColorPickerAndShow({
+                r = currentColor.r,
+                g = currentColor.g,
+                b = currentColor.b,
+                opacity = currentColor.a,
+                hasOpacity = true,
+                swatchFunc = OnColorSelect,
+                opacityFunc = OnColorSelect,
+                cancelFunc = OnColorSelect,
+            })
+        end)
+
+        if setting.tooltip then
+            container.tooltipText = setting.tooltip
+        end
+
+        yOffset = yOffset - 45
+        return container
+    end
+
     -- Section headers
     local function CreateHeader(parent, text)
         local header = parent:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
@@ -662,8 +739,7 @@ function LCC:CreateOptionsPanel()
         elseif setting.type == "checkbox" then
             CreateInlineCheckbox(content, setting)
         elseif setting.type == "color" then
-            -- Skip color picker in native panel (not easily supported)
-            -- User can use /lcc for advanced settings with color picker
+            CreateInlineColorPicker(content, setting)
         end
     end
 
@@ -691,209 +767,4 @@ function LCC:CreateOptionsPanel()
 
     LCC.optionsPanel = panel
     return panel
-end
-
--- Create options frame
-function LCC:ShowOptionsFrame()
-    if LCC.optionsFrame then
-        if LCC.optionsFrame:IsShown() then
-            LCC.optionsFrame:Hide()
-        else
-            LCC.optionsFrame:Show()
-        end
-        return
-    end
-
-    -- Create the options frame
-    local optionsFrame = CreateFrame("Frame", "LucyCursorCooldownsOptionsFrame", UIParent, "BasicFrameTemplateWithInset")
-    optionsFrame:SetSize(400, 500)
-    optionsFrame:SetPoint("CENTER")
-    optionsFrame:SetMovable(true)
-    optionsFrame:EnableMouse(true)
-    optionsFrame:RegisterForDrag("LeftButton")
-    optionsFrame:SetScript("OnDragStart", optionsFrame.StartMoving)
-    optionsFrame:SetScript("OnDragStop", optionsFrame.StopMovingOrSizing)
-
-    LCC.optionsFrame = optionsFrame
-
-    -- Set title
-    optionsFrame.title = optionsFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    optionsFrame.title:SetPoint("TOP", optionsFrame.TitleBg, "TOP", 0, -5)
-    optionsFrame.title:SetText("Lucy Cursor Cooldowns")
-
-    -- Create scroll frame
-    local scrollFrame = CreateFrame("ScrollFrame", "LCCScrollFrame", optionsFrame, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", optionsFrame, "TOPLEFT", 4, -30)
-    scrollFrame:SetPoint("BOTTOMRIGHT", optionsFrame, "BOTTOMRIGHT", -26, 4)
-
-    -- Create content frame for scroll frame
-    local content = CreateFrame("Frame", "LCCScrollContent", scrollFrame)
-    content:SetSize(350, 750) -- Height can be larger than the scroll frame
-    scrollFrame:SetScrollChild(content)
-
-    local yOffset = -10
-    local db = LucyCursorCooldownsDB
-
-    -- Helper function to create a color picker button
-    local function CreateColorPicker(parent, name, setting)
-        local colorFrame = CreateFrame("Frame", name, parent)
-        colorFrame:SetSize(300, 30)
-        colorFrame:SetPoint("TOPLEFT", 30, yOffset)
-
-        -- Label
-        local labelText = colorFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        labelText:SetPoint("LEFT", 0, 0)
-        labelText:SetText(setting.label .. ":")
-
-        -- Color swatch
-        local colorSwatch = CreateFrame("Button", name .. "Swatch", colorFrame)
-        colorSwatch:SetSize(30, 20)
-        colorSwatch:SetPoint("LEFT", 200, 0)
-
-        local colorTexture = colorSwatch:CreateTexture(nil, "BACKGROUND")
-        colorTexture:SetAllPoints(colorSwatch)
-        local color = db[setting.key]
-        colorTexture:SetColorTexture(color.r, color.g, color.b, color.a or 1)
-        colorSwatch.texture = colorTexture
-
-        -- Border for the color swatch
-        local swatchBorder = colorSwatch:CreateTexture(nil, "BORDER")
-        swatchBorder:SetSize(32, 22)
-        swatchBorder:SetPoint("CENTER")
-        swatchBorder:SetColorTexture(0.5, 0.5, 0.5, 1)
-        swatchBorder:SetDrawLayer("BORDER", -1)
-
-        colorSwatch:SetScript("OnClick", function()
-            local color = db[setting.key]
-            local function OnColorSelect(restore)
-                local newR, newG, newB, newA
-                if restore then
-                    newR, newG, newB, newA = restore.r, restore.g, restore.b, restore.a
-                else
-                    newR, newG, newB = ColorPickerFrame:GetColorRGB()
-                    newA = ColorPickerFrame:GetColorAlpha()
-                end
-
-                db[setting.key] = { r = newR, g = newG, b = newB, a = newA }
-                colorTexture:SetColorTexture(newR, newG, newB, newA)
-                LCC:UpdateFrameSizes()
-            end
-
-            ColorPickerFrame:SetupColorPickerAndShow({
-                r = color.r,
-                g = color.g,
-                b = color.b,
-                opacity = color.a,
-                hasOpacity = true,
-                swatchFunc = OnColorSelect,
-                opacityFunc = OnColorSelect,
-                cancelFunc = OnColorSelect,
-            })
-        end)
-
-        yOffset = yOffset - 40
-        return colorFrame
-    end
-
-    -- Helper function to create a slider
-    local function CreateSlider(parent, name, setting)
-        local slider = CreateFrame("Slider", name, parent, "OptionsSliderTemplate")
-        slider:SetPoint("TOPLEFT", 30, yOffset)
-        slider:SetMinMaxValues(setting.min, setting.max)
-        slider:SetValueStep(setting.step)
-        slider:SetObeyStepOnDrag(true)
-        slider:SetValue(db[setting.key])
-        slider:SetWidth(300)
-
-        -- Set label
-        getglobal(slider:GetName() .. "Text"):SetText(setting.label)
-
-        -- Value label
-        slider.valueLabel = slider:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        slider.valueLabel:SetPoint("TOP", slider, "BOTTOM", 0, 0)
-        slider.valueLabel:SetText(string.format("%.2f", db[setting.key]))
-
-        -- Min/Max labels
-        getglobal(slider:GetName() .. "Low"):SetText(setting.min)
-        getglobal(slider:GetName() .. "High"):SetText(setting.max)
-
-        slider:SetScript("OnValueChanged", function(self, value)
-            db[setting.key] = value
-            slider.valueLabel:SetText(string.format("%.2f", value))
-            LCC:UpdateFrameSizes()
-        end)
-
-        if setting.tooltip then
-            slider.tooltipText = setting.tooltip
-        end
-
-        yOffset = yOffset - 50
-        return slider
-    end
-
-    -- Helper function to create a checkbox
-    local function CreateCheckbox(parent, setting)
-        local checkbox = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-        checkbox:SetPoint("TOPLEFT", 30, yOffset)
-        checkbox:SetChecked(db[setting.key])
-        checkbox.text = checkbox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        checkbox.text:SetPoint("LEFT", checkbox, "RIGHT", 5, 0)
-        checkbox.text:SetText(setting.label)
-
-        checkbox:SetScript("OnClick", function(self)
-            db[setting.key] = self:GetChecked()
-            LCC:UpdateFrameSizes()
-        end)
-
-        if setting.tooltip then
-            checkbox.tooltipText = setting.tooltip
-        end
-
-        yOffset = yOffset - 40
-        return checkbox
-    end
-
-    -- Helper function to create section headers
-    local function CreateHeader(parent, text)
-        local header = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightLarge")
-        header:SetPoint("TOPLEFT", 20, yOffset)
-        header:SetText(text)
-        yOffset = yOffset - 30
-        return header
-    end
-
-    -- Build UI from settings definition
-    local sliderIndex = 1
-    for _, setting in ipairs(LCC.settingsDefinition) do
-        if setting.type == "header" then
-            CreateHeader(content, setting.text)
-        elseif setting.type == "slider" then
-            CreateSlider(content, "LCC" .. setting.key .. "Slider", setting)
-            sliderIndex = sliderIndex + 1
-        elseif setting.type == "checkbox" then
-            CreateCheckbox(content, setting)
-        elseif setting.type == "color" then
-            CreateColorPicker(content, "LCC" .. setting.key .. "Picker", setting)
-        end
-    end
-
-    -- Reset button
-    yOffset = yOffset - 10
-    local resetButton = CreateFrame("Button", "LCCResetButton", content, "UIPanelButtonTemplate")
-    resetButton:SetSize(150, 25)
-    resetButton:SetPoint("TOPLEFT", 20, yOffset)
-    resetButton:SetText("Reset to Defaults")
-    resetButton:SetScript("OnClick", function()
-        LCC:ResetToDefaults()
-
-        -- Refresh UI by recreating the options frame
-        LCC.optionsFrame:Hide()
-        LCC.optionsFrame = nil
-        LCC:ShowOptionsFrame()
-
-        print("|cFF00FF00LucyCursorCooldowns|r settings reset to defaults")
-    end)
-
-    -- Close button (already included in BasicFrameTemplateWithInset)
-    optionsFrame:Show()
 end
