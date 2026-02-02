@@ -382,20 +382,20 @@ LCC.settingsDefinition = {
         type = "slider",
         label = "Cursor Offset X",
         key = "cursorOffsetX",
-        min = 0,
+        min = -100,
         max = 100,
         step = 5,
-        tooltip = "Horizontal offset from cursor position",
+        tooltip = "Horizontal offset from cursor position (negative values place icon to the left)",
         fullWidth = true
     },
     {
         type = "slider",
         label = "Cursor Offset Y",
         key = "cursorOffsetY",
-        min = 0,
+        min = -100,
         max = 100,
         step = 5,
-        tooltip = "Vertical offset from cursor position",
+        tooltip = "Vertical offset from cursor position (negative values place icon below)",
         fullWidth = true
     },
     {
@@ -575,15 +575,15 @@ function LCC:CreateOptionsPanel()
         })
     end
 
-    -- Cursor icon (positioned at bottom-left of preview area to simulate cursor position)
+    -- Cursor icon (positioned more centered to allow preview of negative offsets)
     local cursorIcon = previewContainer:CreateTexture(nil, "OVERLAY")
     cursorIcon:SetSize(24, 24)
     cursorIcon:SetTexture("Interface\\Cursor\\Point")
     -- Position cursor texture so the hotspot (pointing finger tip) aligns with our reference point
     -- The Point cursor's hotspot is approximately at offset (3, 21) from the texture's BOTTOMLEFT
-    -- We want the hotspot at (-40, -40) from container CENTER
-    -- So we position BOTTOMLEFT at (-40-3, -40-21) = (-43, -61)
-    cursorIcon:SetPoint("BOTTOMLEFT", previewContainer, "CENTER", -43, -61)
+    -- We want the hotspot at (10, 10) from container CENTER (more centered for negative offset preview)
+    -- So we position BOTTOMLEFT at (10-3, 10-21) = (7, -11)
+    cursorIcon:SetPoint("BOTTOMLEFT", previewContainer, "CENTER", 7, -11)
 
     -- Preview cooldown icon (positioned relative to cursor)
     local previewIcon = CreateFrame("Frame", nil, previewContainer)
@@ -598,11 +598,11 @@ function LCC:CreateOptionsPanel()
         local offsetY = previewIcon.animOffsetY or 0
         previewIcon:ClearAllPoints()
         -- Match the actual implementation: use CENTER positioning
-        -- The "cursor hotspot" in the preview should be at container CENTER (-40, -40)
+        -- The "cursor hotspot" in the preview is at container CENTER (10, 10)
         -- The icon's CENTER should be offset from the cursor hotspot by the configured offsets
         previewIcon:SetPoint("CENTER", previewContainer, "CENTER",
-            -40 + (db.cursorOffsetX or 20),
-            -40 + (db.cursorOffsetY or 20) + offsetY)
+            10 + (db.cursorOffsetX or 20),
+            10 + (db.cursorOffsetY or 20) + offsetY)
     end
     UpdatePreviewPosition()
 
