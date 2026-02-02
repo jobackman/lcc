@@ -352,7 +352,7 @@ function LCC:OpenSettings()
             -- Fallback: open general settings
             Settings.OpenToCategory(Settings.INTERFACE_CATEGORY_ID)
         end
-    -- Legacy API (older expansions)
+        -- Legacy API (older expansions)
     elseif InterfaceOptionsFrame_OpenToCategory then
         if LCC.optionsPanel then
             InterfaceOptionsFrame_OpenToCategory(LCC.optionsPanel)
@@ -366,7 +366,7 @@ end
 LCC.settingsDefinition = {
     {
         type = "header",
-        text = "Size Settings"
+        text = "Icon Settings"
     },
     {
         type = "slider",
@@ -375,11 +375,81 @@ LCC.settingsDefinition = {
         min = 24,
         max = 64,
         step = 1,
-        tooltip = "Size of the spell icon and cooldown display"
+        tooltip = "Size of the spell icon and cooldown display",
+        fullWidth = true
+    },
+    {
+        type = "slider",
+        label = "Cursor Offset X",
+        key = "cursorOffsetX",
+        min = 0,
+        max = 100,
+        step = 5,
+        tooltip = "Horizontal offset from cursor position",
+        fullWidth = true
+    },
+    {
+        type = "slider",
+        label = "Cursor Offset Y",
+        key = "cursorOffsetY",
+        min = 0,
+        max = 100,
+        step = 5,
+        tooltip = "Vertical offset from cursor position",
+        fullWidth = true
+    },
+    {
+        type = "checkbox",
+        label = "Draw Cooldown Edge",
+        key = "drawEdge",
+        tooltip = "Show edge highlight on cooldown swipe",
+        fullWidth = true
+    },
+    {
+        type = "checkbox",
+        label = "Show Border",
+        key = "showBorder",
+        tooltip = "Show a border around the cooldown icon",
+        fullWidth = true
+    },
+    {
+        type = "color",
+        label = "Border Color",
+        key = "borderColor",
+        tooltip = "Color of the border",
+        fullWidth = true
+    },
+    {
+        type = "slider",
+        label = "Border Size",
+        key = "borderSize",
+        min = 1,
+        max = 10,
+        step = 1,
+        tooltip = "Thickness of the border",
+        fullWidth = true
     },
     {
         type = "header",
-        text = "Timing Settings"
+        text = "Animation"
+    },
+    {
+        type = "slider",
+        label = "Animate-In Duration",
+        key = "animateInDuration",
+        min = 0.05,
+        max = 1.0,
+        step = 0.05,
+        tooltip = "Duration of the pop-in animation"
+    },
+    {
+        type = "slider",
+        label = "Initial Y Offset",
+        key = "initialYOffset",
+        min = 0,
+        max = 30,
+        step = 1,
+        tooltip = "Starting vertical offset for pop-in animation"
     },
     {
         type = "slider",
@@ -400,13 +470,8 @@ LCC.settingsDefinition = {
         tooltip = "Duration of the fade-out animation"
     },
     {
-        type = "slider",
-        label = "Animate-In Duration",
-        key = "animateInDuration",
-        min = 0.05,
-        max = 1.0,
-        step = 0.05,
-        tooltip = "Duration of the pop-in animation"
+        type = "header",
+        text = "Filtering"
     },
     {
         type = "slider",
@@ -415,77 +480,8 @@ LCC.settingsDefinition = {
         min = 0.0,
         max = 5.0,
         step = 0.1,
-        tooltip = "Minimum cooldown duration to show (filters out GCD)"
-    },
-    {
-        type = "header",
-        text = "Animation Settings"
-    },
-    {
-        type = "slider",
-        label = "Initial Y Offset",
-        key = "initialYOffset",
-        min = 0,
-        max = 30,
-        step = 1,
-        tooltip = "Starting vertical offset for pop-in animation"
-    },
-    {
-        type = "header",
-        text = "Cursor Offset"
-    },
-    {
-        type = "slider",
-        label = "Cursor Offset X",
-        key = "cursorOffsetX",
-        min = 0,
-        max = 100,
-        step = 5,
-        tooltip = "Horizontal offset from cursor position"
-    },
-    {
-        type = "slider",
-        label = "Cursor Offset Y",
-        key = "cursorOffsetY",
-        min = 0,
-        max = 100,
-        step = 5,
-        tooltip = "Vertical offset from cursor position"
-    },
-    {
-        type = "header",
-        text = "Border Settings"
-    },
-    {
-        type = "checkbox",
-        label = "Show Border",
-        key = "showBorder",
-        tooltip = "Show a border around the cooldown icon"
-    },
-    {
-        type = "color",
-        label = "Border Color",
-        key = "borderColor",
-        tooltip = "Color of the border"
-    },
-    {
-        type = "slider",
-        label = "Border Size",
-        key = "borderSize",
-        min = 1,
-        max = 10,
-        step = 1,
-        tooltip = "Thickness of the border"
-    },
-    {
-        type = "header",
-        text = "Cooldown Display"
-    },
-    {
-        type = "checkbox",
-        label = "Draw Cooldown Edge",
-        key = "drawEdge",
-        tooltip = "Show edge highlight on cooldown swipe"
+        tooltip = "Minimum cooldown duration to show (filters out GCD)",
+        fullWidth = true
     }
 }
 
@@ -545,7 +541,7 @@ function LCC:CreateOptionsPanel()
 
     local panel = CreateFrame("Frame", "LucyCursorCooldownsOptionsPanel")
     panel.name = "Lucy Cursor Cooldowns"
-    
+
     -- Get reference to settings database
     local db = LucyCursorCooldownsDB
 
@@ -559,15 +555,15 @@ function LCC:CreateOptionsPanel()
     subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -8)
     subtitle:SetText("Configure cursor cooldown display settings")
 
-    -- Preview section
+    -- Preview section (top-right corner)
     local previewHeader = panel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    previewHeader:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -20)
+    previewHeader:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -30, -16)
     previewHeader:SetText("Preview:")
 
     -- Preview container frame
     local previewContainer = CreateFrame("Frame", nil, panel, BackdropTemplateMixin and "BackdropTemplate")
-    previewContainer:SetPoint("TOPLEFT", previewHeader, "BOTTOMLEFT", 0, -10)
-    previewContainer:SetSize(200, 200)
+    previewContainer:SetPoint("TOPRIGHT", previewHeader, "BOTTOMRIGHT", 0, -10)
+    previewContainer:SetSize(250, 250)
     if previewContainer.SetBackdrop then
         previewContainer:SetBackdrop({
             bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
@@ -596,8 +592,9 @@ function LCC:CreateOptionsPanel()
     -- Position relative to cursor with offsets
     local function UpdatePreviewPosition()
         local offsetY = previewIcon.animOffsetY or 0
-        previewIcon:SetPoint("BOTTOMLEFT", cursorIcon, "TOPRIGHT", 
-            db.cursorOffsetX or 20, 
+        previewIcon:ClearAllPoints()
+        previewIcon:SetPoint("BOTTOMLEFT", cursorIcon, "TOPRIGHT",
+            db.cursorOffsetX or 20,
             (db.cursorOffsetY or 20) + offsetY)
     end
     UpdatePreviewPosition()
@@ -639,13 +636,13 @@ function LCC:CreateOptionsPanel()
     local function UpdatePreview()
         local iconSize = db.iconSize
         local borderSize = db.borderSize or 2
-        
+
         previewIcon:SetSize(iconSize, iconSize)
         previewIcon.icon:SetAllPoints(previewIcon)
         previewIcon.border:SetSize(iconSize + (borderSize * 2), iconSize + (borderSize * 2))
         previewIcon.cooldown:SetAllPoints(previewIcon.icon)
         previewIcon.cooldown:SetDrawEdge(db.drawEdge)
-        
+
         if db.showBorder then
             previewIcon.border:Show()
             local bc = db.borderColor
@@ -653,7 +650,7 @@ function LCC:CreateOptionsPanel()
         else
             previewIcon.border:Hide()
         end
-        
+
         UpdatePreviewPosition()
     end
 
@@ -662,7 +659,7 @@ function LCC:CreateOptionsPanel()
     -- Function to play the full animation sequence
     local animTimer = nil
     local fadeTimer = nil
-    
+
     local function PlayAnimation()
         -- Cancel any existing timers
         if animTimer then
@@ -673,33 +670,33 @@ function LCC:CreateOptionsPanel()
             fadeTimer:Cancel()
             fadeTimer = nil
         end
-        
+
         -- Reset and show icon
         previewIcon:SetAlpha(0)
         previewIcon.animOffsetY = db.initialYOffset or 10
         previewIcon:Show()
-        
+
         -- Start cooldown
         previewIcon.cooldown:SetCooldown(GetTime(), 10)
-        
+
         -- Animate in
         local animDuration = db.animateInDuration or 0.2
         local animSteps = 15
         local stepDuration = animDuration / animSteps
         local currentStep = 0
-        
+
         animTimer = C_Timer.NewTicker(stepDuration, function()
             currentStep = currentStep + 1
             local progress = currentStep / animSteps
             local initialYOffset = db.initialYOffset or 10
             previewIcon.animOffsetY = initialYOffset - (progress * initialYOffset)
-            
+
             if currentStep >= animSteps then
                 previewIcon:SetAlpha(1.0)
                 previewIcon.animOffsetY = 0
                 animTimer:Cancel()
                 animTimer = nil
-                
+
                 -- Schedule fade out
                 fadeTimer = C_Timer.NewTimer(db.fadeoutDelay or 2.0, function()
                     -- Fade out
@@ -707,11 +704,11 @@ function LCC:CreateOptionsPanel()
                     local fadeSteps = 20
                     local fadeStepDuration = fadeDuration / fadeSteps
                     local fadeStep = 0
-                    
+
                     fadeTimer = C_Timer.NewTicker(fadeStepDuration, function()
                         fadeStep = fadeStep + 1
                         local newAlpha = 1.0 - (fadeStep / fadeSteps)
-                        
+
                         if newAlpha <= 0 then
                             previewIcon:Hide()
                             previewIcon:SetAlpha(1.0)
@@ -745,37 +742,41 @@ function LCC:CreateOptionsPanel()
     previewDesc:SetPoint("TOP", previewContainer, "BOTTOM", 0, -5)
     previewDesc:SetText("Click 'Test Animation' to see the full effect")
 
-    -- Create scroll frame for settings
-    local scrollFrame = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", previewContainer, "BOTTOMLEFT", 0, -30)
-    scrollFrame:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -28, 10)
-
-    -- Content frame
-    local content = CreateFrame("Frame", nil, scrollFrame)
-    content:SetSize(1, 1)
-    scrollFrame:SetScrollChild(content)
+    -- Settings container (left side, two-column layout)
+    local settingsContainer = CreateFrame("Frame", nil, panel)
+    settingsContainer:SetPoint("TOPLEFT", subtitle, "BOTTOMLEFT", 0, -20)
+    settingsContainer:SetPoint("BOTTOMRIGHT", previewContainer, "BOTTOMLEFT", -20, 0)
 
     local yOffset = -10
+    local leftColumnX = 10
+    local rightColumnX = 310
+    local currentColumn = leftColumnX
 
-    -- Helper function to create inline sliders
-    local function CreateInlineSlider(parent, setting)
+    -- Helper function to create compact sliders (single line with label and value)
+    local function CreateCompactSlider(parent, setting)
+        -- Force left column for full-width settings
+        if setting.fullWidth and currentColumn == rightColumnX then
+            currentColumn = leftColumnX
+            yOffset = yOffset - 40
+        end
+
         local container = CreateFrame("Frame", nil, parent)
-        container:SetSize(580, 50)
-        container:SetPoint("TOPLEFT", 10, yOffset)
+        container:SetSize(280, 35)
+        container:SetPoint("TOPLEFT", currentColumn, yOffset)
 
         -- Label
-        local labelText = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        labelText:SetPoint("TOPLEFT", 0, -5)
+        local labelText = container:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        labelText:SetPoint("TOPLEFT", 0, 0)
         labelText:SetText(setting.label)
 
         -- Slider (using BackdropTemplate for modern WoW)
         local slider = CreateFrame("Slider", nil, container, BackdropTemplateMixin and "BackdropTemplate")
-        slider:SetPoint("TOPLEFT", 0, -25)
+        slider:SetPoint("TOPLEFT", 0, -15)
         slider:SetMinMaxValues(setting.min, setting.max)
         slider:SetValueStep(setting.step)
         slider:SetObeyStepOnDrag(true)
         slider:SetValue(db[setting.key])
-        slider:SetWidth(400)
+        slider:SetWidth(200)
         slider:SetHeight(17)
         slider:SetOrientation("HORIZONTAL")
 
@@ -797,23 +798,14 @@ function LCC:CreateOptionsPanel()
         thumb:SetSize(32, 32)
         slider:SetThumbTexture(thumb)
 
-        -- Value label
-        slider.valueLabel = slider:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-        slider.valueLabel:SetPoint("LEFT", slider, "RIGHT", 10, 0)
-        slider.valueLabel:SetText(string.format("%.2f", db[setting.key]))
-
-        -- Min/Max labels
-        local minLabel = slider:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        minLabel:SetPoint("TOPLEFT", slider, "BOTTOMLEFT", 0, 2)
-        minLabel:SetText(setting.min)
-
-        local maxLabel = slider:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        maxLabel:SetPoint("TOPRIGHT", slider, "BOTTOMRIGHT", 0, 2)
-        maxLabel:SetText(setting.max)
+        -- Value label (to the right of slider)
+        slider.valueLabel = slider:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        slider.valueLabel:SetPoint("LEFT", slider, "RIGHT", 5, 0)
+        slider.valueLabel:SetText(string.format("%.1f", db[setting.key]))
 
         slider:SetScript("OnValueChanged", function(self, value)
             db[setting.key] = value
-            slider.valueLabel:SetText(string.format("%.2f", value))
+            slider.valueLabel:SetText(string.format("%.1f", value))
             LCC:UpdateFrameSizes()
             if panel.UpdatePreview then
                 panel.UpdatePreview()
@@ -824,16 +816,33 @@ function LCC:CreateOptionsPanel()
             container.tooltipText = setting.tooltip
         end
 
-        yOffset = yOffset - 60
+        -- Alternate columns (or move to next line if full-width)
+        if setting.fullWidth then
+            currentColumn = leftColumnX
+            yOffset = yOffset - 40
+        elseif currentColumn == leftColumnX then
+            currentColumn = rightColumnX
+        else
+            currentColumn = leftColumnX
+            yOffset = yOffset - 40
+        end
+
         return container
     end
 
-    -- Helper function to create checkboxes
-    local function CreateInlineCheckbox(parent, setting)
+    -- Helper function to create compact checkboxes
+    local function CreateCompactCheckbox(parent, setting)
+        -- Force left column for full-width settings
+        if setting.fullWidth and currentColumn == rightColumnX then
+            currentColumn = leftColumnX
+            yOffset = yOffset - 30
+        end
+
         local checkbox = CreateFrame("CheckButton", nil, parent, "InterfaceOptionsCheckButtonTemplate")
-        checkbox:SetPoint("TOPLEFT", 10, yOffset)
+        checkbox:SetPoint("TOPLEFT", currentColumn, yOffset)
         checkbox:SetChecked(db[setting.key])
         checkbox.Text:SetText(setting.label)
+        checkbox.Text:SetFont(checkbox.Text:GetFont(), 11)
 
         checkbox:SetScript("OnClick", function(self)
             db[setting.key] = self:GetChecked()
@@ -847,37 +856,60 @@ function LCC:CreateOptionsPanel()
             checkbox.tooltipText = setting.tooltip
         end
 
-        yOffset = yOffset - 30
+        -- Alternate columns (or move to next line if full-width)
+        if setting.fullWidth then
+            currentColumn = leftColumnX
+            yOffset = yOffset - 30
+        elseif currentColumn == leftColumnX then
+            currentColumn = rightColumnX
+        else
+            currentColumn = leftColumnX
+            yOffset = yOffset - 30
+        end
+
         return checkbox
     end
 
-    -- Helper function to create color pickers
-    local function CreateInlineColorPicker(parent, setting)
+    -- Helper function to create compact color pickers
+    local function CreateCompactColorPicker(parent, setting)
+        -- Force left column for full-width settings
+        if setting.fullWidth and currentColumn == rightColumnX then
+            currentColumn = leftColumnX
+            yOffset = yOffset - 35
+        end
+
         local container = CreateFrame("Frame", nil, parent)
-        container:SetSize(580, 40)
-        container:SetPoint("TOPLEFT", 10, yOffset)
+        container:SetSize(280, 30)
+        container:SetPoint("TOPLEFT", currentColumn, yOffset)
 
         -- Label
-        local labelText = container:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        local labelText = container:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
         labelText:SetPoint("LEFT", 0, 0)
         labelText:SetText(setting.label .. ":")
 
-        -- Color swatch button
+        -- Color swatch button (standard WoW style)
         local colorSwatch = CreateFrame("Button", nil, container)
-        colorSwatch:SetSize(40, 20)
-        colorSwatch:SetPoint("LEFT", 200, 0)
+        colorSwatch:SetSize(20, 20)
+        colorSwatch:SetPoint("LEFT", 120, 0)
 
-        local colorTexture = colorSwatch:CreateTexture(nil, "BACKGROUND")
+        -- Checkerboard background for alpha visualization
+        local bgTexture = colorSwatch:CreateTexture(nil, "BACKGROUND")
+        bgTexture:SetTexture("Tileable-Checkers")
+        bgTexture:SetTexCoord(0, 0.25, 0, 0.25)
+        bgTexture:SetDesaturated(true)
+        bgTexture:SetVertexColor(1, 1, 1, 0.75)
+        bgTexture:SetAllPoints(colorSwatch)
+
+        -- Actual color texture
+        local colorTexture = colorSwatch:CreateTexture(nil, "ARTWORK")
         colorTexture:SetAllPoints(colorSwatch)
         local color = db[setting.key]
         colorTexture:SetColorTexture(color.r, color.g, color.b, color.a or 1)
 
-        -- Border for the color swatch
-        local swatchBorder = colorSwatch:CreateTexture(nil, "BORDER")
-        swatchBorder:SetSize(42, 22)
-        swatchBorder:SetPoint("CENTER")
-        swatchBorder:SetColorTexture(0.5, 0.5, 0.5, 1)
-        swatchBorder:SetDrawLayer("BORDER", -1)
+        -- Standard swatch border
+        local swatchBorder = colorSwatch:CreateTexture(nil, "OVERLAY")
+        swatchBorder:SetTexture("Interface\\ChatFrame\\ChatFrameColorSwatch")
+        swatchBorder:SetAllPoints(colorSwatch)
 
         colorSwatch:SetScript("OnClick", function()
             local currentColor = db[setting.key]
@@ -914,34 +946,53 @@ function LCC:CreateOptionsPanel()
             container.tooltipText = setting.tooltip
         end
 
-        yOffset = yOffset - 45
+        -- Alternate columns (or move to next line if full-width)
+        if setting.fullWidth then
+            currentColumn = leftColumnX
+            yOffset = yOffset - 35
+        elseif currentColumn == leftColumnX then
+            currentColumn = rightColumnX
+        else
+            currentColumn = leftColumnX
+            yOffset = yOffset - 35
+        end
+
         return container
     end
 
-    -- Section headers
+    -- Section headers (full width)
     local function CreateHeader(parent, text)
+        -- If we're in the right column, we need to move down to complete the row first
+        if currentColumn == rightColumnX then
+            yOffset = yOffset - 40 -- Complete the current row
+        end
+
+        -- Reset to left column for headers
+        currentColumn = leftColumnX
+        if yOffset ~= -10 then
+            yOffset = yOffset - 20 -- Add extra spacing before header
+        end
+
         local header = parent:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
         header:SetPoint("TOPLEFT", 10, yOffset)
         header:SetText(text)
-        yOffset = yOffset - 25
+        yOffset = yOffset - 30 -- Space after header for controls
+        currentColumn = leftColumnX
         return header
     end
 
     -- Build UI from settings definition
     for _, setting in ipairs(LCC.settingsDefinition) do
         if setting.type == "header" then
-            CreateHeader(content, setting.text)
+            CreateHeader(settingsContainer, setting.text)
         elseif setting.type == "slider" then
-            CreateInlineSlider(content, setting)
+            CreateCompactSlider(settingsContainer, setting)
         elseif setting.type == "checkbox" then
-            CreateInlineCheckbox(content, setting)
+            CreateCompactCheckbox(settingsContainer, setting)
         elseif setting.type == "color" then
-            CreateInlineColorPicker(content, setting)
+            CreateCompactColorPicker(settingsContainer, setting)
         end
     end
-
-    -- Set content height based on yOffset
-    content:SetSize(580, math.abs(yOffset) + 20)
 
     -- Refresh function for settings panel
     panel.refresh = function()
