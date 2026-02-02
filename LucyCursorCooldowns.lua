@@ -579,7 +579,11 @@ function LCC:CreateOptionsPanel()
     local cursorIcon = previewContainer:CreateTexture(nil, "OVERLAY")
     cursorIcon:SetSize(24, 24)
     cursorIcon:SetTexture("Interface\\Cursor\\Point")
-    cursorIcon:SetPoint("BOTTOMLEFT", previewContainer, "CENTER", -40, -40)
+    -- Position cursor texture so the hotspot (pointing finger tip) aligns with our reference point
+    -- The Point cursor's hotspot is approximately at offset (3, 21) from the texture's BOTTOMLEFT
+    -- We want the hotspot at (-40, -40) from container CENTER
+    -- So we position BOTTOMLEFT at (-40-3, -40-21) = (-43, -61)
+    cursorIcon:SetPoint("BOTTOMLEFT", previewContainer, "CENTER", -43, -61)
 
     -- Preview cooldown icon (positioned relative to cursor)
     local previewIcon = CreateFrame("Frame", nil, previewContainer)
@@ -593,9 +597,12 @@ function LCC:CreateOptionsPanel()
     local function UpdatePreviewPosition()
         local offsetY = previewIcon.animOffsetY or 0
         previewIcon:ClearAllPoints()
-        previewIcon:SetPoint("BOTTOMLEFT", cursorIcon, "TOPRIGHT",
-            db.cursorOffsetX or 20,
-            (db.cursorOffsetY or 20) + offsetY)
+        -- Match the actual implementation: use CENTER positioning
+        -- The "cursor hotspot" in the preview should be at container CENTER (-40, -40)
+        -- The icon's CENTER should be offset from the cursor hotspot by the configured offsets
+        previewIcon:SetPoint("CENTER", previewContainer, "CENTER",
+            -40 + (db.cursorOffsetX or 20),
+            -40 + (db.cursorOffsetY or 20) + offsetY)
     end
     UpdatePreviewPosition()
 
