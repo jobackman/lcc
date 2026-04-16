@@ -198,40 +198,43 @@ end
 
 -- Spellcast failed handler
 function LCC:OnSpellcastFailed(unit, castGUID, spellID)
-    if unit ~= "player" then return end
-
-    -- Get cooldown information using pcall to handle secret values during combat
-    local success, cooldownInfo = pcall(C_Spell.GetSpellCooldown, spellID)
-
-    -- If the call failed or returned nil, we can't proceed
-    if not success or not cooldownInfo then
-        return -- Fail silently - likely in combat with restricted API access
+    if unit ~= "player" or not spellID then
+        return
     end
 
-    -- Check if the duration field is accessible (not a secret value)
-    if not IsSafeValue(cooldownInfo.duration) then
-        return -- Fail silently - duration is a secret value (combat restriction)
+    -- Get cooldown metadata for the spell.
+    local cooldownInfo = C_Spell.GetSpellCooldown(spellID)
+    if not cooldownInfo or cooldownInfo.isOnGCD then
+        return
     end
 
-    -- At this point, we have safe access to cooldown data
+    if cooldownInfo.isActive == false then
+        return
+    end
+
+    -- Try the combat-safe duration object path first.
+    local durationObject = C_Spell.GetSpellCooldownDuration(spellID)
+    if durationObject then
+        LCC:ShowCooldownAtCursor(spellID, durationObject)
+        return
+    end
+
+    -- Fallback to raw values if duration object is unavailable.
+    local success = IsSafeValue(cooldownInfo.duration) and IsSafeValue(cooldownInfo.startTime)
+    if not success then
+        return
+    end
+
     if cooldownInfo.duration and cooldownInfo.duration > 0 then
-        -- Filter out global cooldown (GCD) using user-configured threshold
         local minThreshold = LucyCursorCooldownsDB.minCooldownThreshold or 2.0
-        local isGCDOnly = cooldownInfo.duration < minThreshold
-
-        if not isGCDOnly then
-            -- Verify startTime is also safe before using it
-            if IsSafeValue(cooldownInfo.startTime) then
-                -- Spell has a real cooldown (not just GCD), show the cursor cooldown frame
-                LCC:ShowCooldownAtCursor(spellID, cooldownInfo.startTime, cooldownInfo.duration)
-            end
+        if cooldownInfo.duration >= minThreshold then
+            LCC:ShowCooldownAtCursor(spellID, { startTime = cooldownInfo.startTime, duration = cooldownInfo.duration })
         end
     end
-    -- No print statements - fail silently when cooldown info isn't available
 end
 
 -- Show cooldown at cursor
-function LCC:ShowCooldownAtCursor(spellID, startTime, duration)
+function LCC:ShowCooldownAtCursor(spellID, cooldownData)
     local cooldownFrame = LCC.cooldownFrame
 
     -- Cancel any existing fade timer
@@ -246,8 +249,14 @@ function LCC:ShowCooldownAtCursor(spellID, startTime, duration)
         cooldownFrame.icon:SetTexture(spellTexture)
     end
 
-    -- Set cooldown
-    cooldownFrame.cooldown:SetCooldown(startTime, duration)
+    -- Set cooldown from duration object if available, otherwise use legacy values.
+    if type(cooldownData) == "table" and cooldownData.startTime and cooldownData.duration then
+        cooldownFrame.cooldown:SetCooldown(cooldownData.startTime, cooldownData.duration)
+    elseif cooldownData and cooldownFrame.cooldown.SetCooldownFromDurationObject then
+        cooldownFrame.cooldown:SetCooldownFromDurationObject(cooldownData)
+    else
+        return
+    end
 
     -- Check if frame is already showing (updating existing cooldown)
     local isUpdate = cooldownFrame:IsShown()
