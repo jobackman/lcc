@@ -58,3 +58,9 @@ jobs:
         uses: BigWigsMods/packager@v2
         with:
           args: -g mists
+
+      # WoW Forever
+      - name: Release for WoW Forever
+        uses: BigWigsMods/packager@v2
+        with:
+          args: -g forever

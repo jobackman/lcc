@@ -1,10 +1,11 @@
-## Interface: 120000
-## Interface-Retail: 120000
-## Interface-Classic: 11501
-## Interface-BCC: 20504
-## Interface-Wrath: 30403
+## Interface: 120100
+## Interface-Retail: 120100
+## Interface-Classic: 11509
+## Interface-BCC: 20506
+## Interface-Wrath: 30405
 ## Interface-Cata: 40402
-## Interface-Mists: 50500
+## Interface-Mists: 50504
+## Interface-Forever: 16001
 ## Title: Lucy Cursor Cooldowns
 ## Notes: Displays cursor
 ## Author: LucyON
